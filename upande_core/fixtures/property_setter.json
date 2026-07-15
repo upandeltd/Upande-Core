@@ -1,0 +1,25 @@
+[
+ {
+  "doctype": "Property Setter",
+  "name": "Warehouse-main-quick_entry",
+  "doc_type": "Warehouse",
+  "doctype_or_field": "DocType",
+  "property": "quick_entry",
+  "property_type": "Check",
+  "value": "1",
+  "module": "Upande Core",
+  "modified": "2026-07-15 16:00:00"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Warehouse-warehouse_type-allow_in_quick_entry",
+  "doc_type": "Warehouse",
+  "doctype_or_field": "DocField",
+  "field_name": "warehouse_type",
+  "property": "allow_in_quick_entry",
+  "property_type": "Check",
+  "value": "1",
+  "module": "Upande Core",
+  "modified": "2026-07-15 16:00:00"
+ }
+]

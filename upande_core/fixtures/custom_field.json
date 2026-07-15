@@ -1,0 +1,72 @@
+[
+ {
+  "doctype": "Custom Field",
+  "name": "Warehouse-custom_farm",
+  "dt": "Warehouse",
+  "fieldname": "custom_farm",
+  "fieldtype": "Link",
+  "options": "Farm",
+  "label": "Farm",
+  "insert_after": "warehouse_detail",
+  "reqd": 1,
+  "allow_in_quick_entry": 1,
+  "in_standard_filter": 1,
+  "description": "Farm this warehouse belongs to",
+  "module": "Upande Core",
+  "modified": "2026-07-15 16:00:00"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Warehouse-custom_farm_structure_sb",
+  "dt": "Warehouse",
+  "fieldname": "custom_farm_structure_sb",
+  "fieldtype": "Tab Break",
+  "label": "Farm Structure",
+  "insert_after": "old_parent",
+  "depends_on": "eval:[\"Greenhouse\",\"Block\"].includes(doc.warehouse_type)",
+  "module": "Upande Core",
+  "modified": "2026-07-15 14:00:00"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Warehouse-custom_sections",
+  "dt": "Warehouse",
+  "fieldname": "custom_sections",
+  "fieldtype": "Table",
+  "options": "Warehouse Section",
+  "label": "Sections",
+  "insert_after": "custom_farm_structure_sb",
+  "hidden": 1,
+  "description": "Sections of this greenhouse. Saving creates the Section records and the Beds in each range.",
+  "module": "Upande Core",
+  "modified": "2026-07-15 14:00:00"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Warehouse-custom_number_of_beds",
+  "dt": "Warehouse",
+  "fieldname": "custom_number_of_beds",
+  "fieldtype": "Int",
+  "label": "Number of Beds",
+  "insert_after": "custom_sections",
+  "hidden": 1,
+  "non_negative": 1,
+  "description": "For farms without sections: saving creates Beds 1 to N in this greenhouse.",
+  "module": "Upande Core",
+  "modified": "2026-07-15 14:00:00"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Warehouse-custom_number_of_rows",
+  "dt": "Warehouse",
+  "fieldname": "custom_number_of_rows",
+  "fieldtype": "Int",
+  "label": "Number of Rows",
+  "insert_after": "custom_number_of_beds",
+  "hidden": 1,
+  "non_negative": 1,
+  "description": "For blocks: saving creates Rows 1 to N in this block.",
+  "module": "Upande Core",
+  "modified": "2026-07-15 15:00:00"
+ }
+]
