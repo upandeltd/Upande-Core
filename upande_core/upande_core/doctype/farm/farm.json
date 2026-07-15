@@ -10,9 +10,11 @@
   "company",
   "farm_name",
   "farm_type",
+  "farm_approver",
   "column_break_farm",
   "abbreviation",
   "farm_code",
+  "area",
   "is_default",
   "location_section",
   "location"
@@ -50,6 +52,13 @@
    "reqd": 1
   },
   {
+   "description": "Employee who approves farm operations",
+   "fieldname": "farm_approver",
+   "fieldtype": "Link",
+   "label": "Farm Approver",
+   "options": "Employee"
+  },
+  {
    "fieldname": "column_break_farm",
    "fieldtype": "Column Break"
   },
@@ -62,6 +71,12 @@
    "fieldname": "farm_code",
    "fieldtype": "Data",
    "label": "Farm Code"
+  },
+  {
+   "fieldname": "area",
+   "fieldtype": "Float",
+   "label": "Area (Acres)",
+   "non_negative": 1
   },
   {
    "default": "0",
