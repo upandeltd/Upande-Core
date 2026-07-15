@@ -1,0 +1,124 @@
+{
+ "actions": [],
+ "autoname": "format:{greenhouse} - Bed {bed}",
+ "creation": "2026-07-15 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "greenhouse",
+  "bed",
+  "farm",
+  "section",
+  "column_break_main",
+  "bed_length",
+  "bed_width",
+  "bed_area"
+ ],
+ "fields": [
+  {
+   "fieldname": "greenhouse",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Greenhouse",
+   "link_filters": "[[\"Warehouse\",\"warehouse_type\",\"=\",\"Greenhouse\"]]",
+   "options": "Warehouse",
+   "reqd": 1
+  },
+  {
+   "fieldname": "bed",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Bed Number",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "fetch_from": "greenhouse.custom_farm",
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Farm",
+   "options": "Farm",
+   "read_only": 1
+  },
+  {
+   "description": "Assigned automatically from the section bed ranges of the greenhouse",
+   "fieldname": "section",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Section",
+   "options": "Section",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "bed_length",
+   "fieldtype": "Float",
+   "label": "Bed Length (m)",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "bed_width",
+   "fieldtype": "Float",
+   "label": "Bed Width (m)",
+   "non_negative": 1
+  },
+  {
+   "description": "Computed from length and width",
+   "fieldname": "bed_area",
+   "fieldtype": "Float",
+   "label": "Bed Area (sqm)",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-07-15 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Core",
+ "name": "Bed",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Stock Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Stock User",
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

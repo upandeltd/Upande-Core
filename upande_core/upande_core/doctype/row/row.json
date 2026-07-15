@@ -1,0 +1,112 @@
+{
+ "actions": [],
+ "autoname": "format:{block} - Row {row}",
+ "creation": "2026-07-15 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "block",
+  "row",
+  "farm",
+  "column_break_main",
+  "row_length",
+  "geo_section",
+  "geojson"
+ ],
+ "fields": [
+  {
+   "fieldname": "block",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Block",
+   "link_filters": "[[\"Warehouse\",\"warehouse_type\",\"=\",\"Block\"]]",
+   "options": "Warehouse",
+   "reqd": 1
+  },
+  {
+   "fieldname": "row",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Row Number",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "fetch_from": "block.custom_farm",
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Farm",
+   "options": "Farm",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "row_length",
+   "fieldtype": "Float",
+   "label": "Row Length (m)",
+   "non_negative": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "geo_section",
+   "fieldtype": "Section Break",
+   "label": "Geometry"
+  },
+  {
+   "description": "GeoJSON geometry of the row for map views",
+   "fieldname": "geojson",
+   "fieldtype": "JSON",
+   "label": "GeoJSON"
+  }
+ ],
+ "links": [],
+ "modified": "2026-07-15 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Core",
+ "name": "Row",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Stock Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Stock User",
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

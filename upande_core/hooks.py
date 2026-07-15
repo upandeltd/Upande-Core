@@ -5,6 +5,80 @@ app_description = "Upande Core Functionalities"
 app_email = "wycliffe@upande.com"
 app_license = "mit"
 
+# Document Events
+# ---------------
+doc_events = {
+	"Warehouse": {
+		"on_update": "upande_core.warehouse_hooks.sync_farm_structure",
+	},
+}
+
+# DocType JS shipped from the app (no site Client Scripts)
+doctype_js = {
+	"Warehouse": "public/js/warehouse.js",
+}
+doctype_tree_js = {
+	"Warehouse": "public/js/warehouse_tree.js",
+}
+
+# Fixtures
+# --------
+fixtures = [
+	{
+		"doctype": "Farm Type",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"Has Phases",
+					"Has Greenhouses",
+					"Has Blocks",
+					"Has Sections",
+					"Has Beds",
+					"Has Zones",
+					"Has Rows",
+					"Has Orchard Trees",
+					"Has Triads",
+				],
+			]
+		],
+	},
+	{
+		"doctype": "Custom Field",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"Warehouse-custom_farm",
+					"Warehouse-custom_farm_structure_sb",
+					"Warehouse-custom_sections",
+					"Warehouse-custom_number_of_beds",
+					"Warehouse-custom_number_of_rows",
+				],
+			]
+		],
+	},
+	{
+		"doctype": "Warehouse Type",
+		"filters": [["name", "in", ["Greenhouse", "Block"]]],
+	},
+	{
+		"doctype": "Property Setter",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"Warehouse-main-quick_entry",
+					"Warehouse-warehouse_type-allow_in_quick_entry",
+				],
+			]
+		],
+	},
+]
+
 # Apps
 # ------------------
 

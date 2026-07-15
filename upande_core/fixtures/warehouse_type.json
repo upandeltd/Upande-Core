@@ -1,0 +1,14 @@
+[
+ {
+  "doctype": "Warehouse Type",
+  "name": "Greenhouse",
+  "description": "Flower farm production unit. Selecting this type on a warehouse enables the greenhouse farm structure (sections, beds).",
+  "modified": "2026-07-15 16:00:00"
+ },
+ {
+  "doctype": "Warehouse Type",
+  "name": "Block",
+  "description": "Coffee/avocado farm production unit. Selecting this type on a warehouse enables the block farm structure (rows).",
+  "modified": "2026-07-15 16:00:00"
+ }
+]

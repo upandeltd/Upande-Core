@@ -1,0 +1,65 @@
+[
+ {
+  "doctype": "Farm Type",
+  "name": "Has Phases",
+  "farm_type_name": "Has Phases",
+  "description": "Farm is organized into phases - parent warehouses grouping the greenhouses or blocks (e.g. Phase 1, Phase 2)",
+  "modified": "2026-07-15 13:00:00"
+ },
+ {
+  "doctype": "Farm Type",
+  "name": "Has Greenhouses",
+  "farm_type_name": "Has Greenhouses",
+  "description": "Production units are greenhouses (created as warehouses), typical for flower farms",
+  "modified": "2026-07-15 13:00:00"
+ },
+ {
+  "doctype": "Farm Type",
+  "name": "Has Blocks",
+  "farm_type_name": "Has Blocks",
+  "description": "Production units are blocks (created as warehouses), typical for coffee and avocado farms",
+  "modified": "2026-07-15 13:00:00"
+ },
+ {
+  "doctype": "Farm Type",
+  "name": "Has Sections",
+  "farm_type_name": "Has Sections",
+  "description": "Greenhouses are divided into sections - each section covers a range of beds",
+  "modified": "2026-07-15 13:00:00"
+ },
+ {
+  "doctype": "Farm Type",
+  "name": "Has Beds",
+  "farm_type_name": "Has Beds",
+  "description": "Greenhouses contain numbered beds with dimensions",
+  "modified": "2026-07-15 13:00:00"
+ },
+ {
+  "doctype": "Farm Type",
+  "name": "Has Zones",
+  "farm_type_name": "Has Zones",
+  "description": "Beds are subdivided into zones",
+  "modified": "2026-07-15 13:00:00"
+ },
+ {
+  "doctype": "Farm Type",
+  "name": "Has Rows",
+  "farm_type_name": "Has Rows",
+  "description": "Blocks are divided into rows",
+  "modified": "2026-07-15 13:00:00"
+ },
+ {
+  "doctype": "Farm Type",
+  "name": "Has Orchard Trees",
+  "farm_type_name": "Has Orchard Trees",
+  "description": "Rows contain individual orchard trees",
+  "modified": "2026-07-15 13:00:00"
+ },
+ {
+  "doctype": "Farm Type",
+  "name": "Has Triads",
+  "farm_type_name": "Has Triads",
+  "description": "Trees are grouped into triads - three-tree sampling units used for scouting and monitoring",
+  "modified": "2026-07-15 13:00:00"
+ }
+]
