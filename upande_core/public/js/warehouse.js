@@ -21,7 +21,7 @@ async function render_farm_structure(frm) {
 	let levels = [];
 	if (frm.doc.custom_farm) {
 		const r = await frappe.call({
-			method: "upande_core.api.get_farm_levels",
+			method: "upande_core.api.farm.get_farm_levels",
 			args: { farm: frm.doc.custom_farm },
 		});
 		levels = r.message || [];
