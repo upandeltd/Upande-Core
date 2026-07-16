@@ -5,6 +5,10 @@ app_description = "Upande Core Functionalities"
 app_email = "wycliffe@upande.com"
 app_license = "mit"
 
+# Installation / migration
+# ------------------------
+after_migrate = "upande_core.install.after_migrate"
+
 # Document Events
 # ---------------
 doc_events = {
@@ -56,6 +60,8 @@ fixtures = [
 					"Warehouse-custom_sections",
 					"Warehouse-custom_number_of_beds",
 					"Warehouse-custom_number_of_rows",
+					"Delivery Note-custom_business_unit",
+					"Sales Invoice-custom_business_unit",
 				],
 			]
 		],
