@@ -56,6 +56,8 @@ fixtures = [
 					"Warehouse-custom_sections",
 					"Warehouse-custom_number_of_beds",
 					"Warehouse-custom_number_of_rows",
+					"Delivery Note-custom_business_unit",
+					"Sales Invoice-custom_business_unit",
 				],
 			]
 		],
