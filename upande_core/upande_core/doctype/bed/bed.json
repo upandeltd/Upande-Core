@@ -1,35 +1,48 @@
 {
  "actions": [],
- "autoname": "format:{greenhouse} - Bed {bed}",
+ "autoname": "format:{greenhouse} - {unit_type} {bed}",
  "creation": "2026-07-15 12:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "greenhouse",
+  "unit_type",
   "bed",
   "farm",
   "section",
   "column_break_main",
+  "variety",
   "bed_length",
   "bed_width",
   "bed_area"
  ],
  "fields": [
   {
+   "description": "Greenhouse for beds, Block for rows",
    "fieldname": "greenhouse",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Greenhouse",
-   "link_filters": "[[\"Warehouse\",\"warehouse_type\",\"=\",\"Greenhouse\"]]",
+   "label": "Greenhouse / Block",
+   "link_filters": "[[\"Warehouse\",\"warehouse_type\",\"in\",[\"Greenhouse\",\"Block\"]]]",
    "options": "Warehouse",
+   "reqd": 1
+  },
+  {
+   "default": "Bed",
+   "description": "Rows (orchard blocks) share this doctype with greenhouse beds",
+   "fieldname": "unit_type",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Unit Type",
+   "options": "Bed\nRow",
    "reqd": 1
   },
   {
    "fieldname": "bed",
    "fieldtype": "Int",
    "in_list_view": 1,
-   "label": "Bed Number",
+   "label": "Bed / Row Number",
    "non_negative": 1,
    "reqd": 1
   },
@@ -55,6 +68,14 @@
   {
    "fieldname": "column_break_main",
    "fieldtype": "Column Break"
+  },
+  {
+   "description": "Variety planted on this bed / row",
+   "fieldname": "variety",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Variety",
+   "options": "Item"
   },
   {
    "fieldname": "bed_length",
