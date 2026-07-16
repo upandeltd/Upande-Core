@@ -65,7 +65,8 @@
   {
    "fieldname": "abbreviation",
    "fieldtype": "Data",
-   "label": "Abbreviation"
+   "label": "Abbreviation",
+   "reqd": 1
   },
   {
    "fieldname": "farm_code",
@@ -75,7 +76,7 @@
   {
    "fieldname": "area",
    "fieldtype": "Float",
-   "label": "Area (Acres)",
+   "label": "Area (Hectares)",
    "non_negative": 1
   },
   {

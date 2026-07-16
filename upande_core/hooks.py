@@ -5,6 +5,10 @@ app_description = "Upande Core Functionalities"
 app_email = "wycliffe@upande.com"
 app_license = "mit"
 
+# Installation / migration
+# ------------------------
+after_migrate = "upande_core.install.after_migrate"
+
 # Document Events
 # ---------------
 doc_events = {
