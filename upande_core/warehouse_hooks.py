@@ -110,16 +110,19 @@ def ensure_section(greenhouse, row):
 
 
 def ensure_rows(block, number_of_rows):
+	"""Rows are Bed records with unit_type = Row (shared farm-structure model)."""
 	existing = set(
-		frappe.get_all("Row", filters={"block": block}, pluck="row")
+		frappe.get_all(
+			"Bed", filters={"greenhouse": block, "unit_type": "Row"}, pluck="bed"
+		)
 	)
 	created = 0
 	for n in range(1, number_of_rows + 1):
 		if n in existing:
 			continue
-		frappe.get_doc({"doctype": "Row", "block": block, "row": n}).insert(
-			ignore_permissions=True
-		)
+		frappe.get_doc(
+			{"doctype": "Bed", "greenhouse": block, "unit_type": "Row", "bed": n}
+		).insert(ignore_permissions=True)
 		created += 1
 	return created
 

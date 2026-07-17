@@ -68,31 +68,5 @@
   "description": "For blocks: saving creates Rows 1 to N in this block.",
   "module": "Upande Core",
   "modified": "2026-07-15 15:00:00"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Delivery Note-custom_business_unit",
-  "dt": "Delivery Note",
-  "fieldname": "custom_business_unit",
-  "fieldtype": "Link",
-  "options": "Business Unit",
-  "label": "Business Unit",
-  "insert_after": "company",
-  "in_standard_filter": 1,
-  "module": "Upande Core",
-  "modified": "2026-07-16 14:00:00"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Sales Invoice-custom_business_unit",
-  "dt": "Sales Invoice",
-  "fieldname": "custom_business_unit",
-  "fieldtype": "Link",
-  "options": "Business Unit",
-  "label": "Business Unit",
-  "insert_after": "company",
-  "in_standard_filter": 1,
-  "module": "Upande Core",
-  "modified": "2026-07-16 14:00:00"
  }
 ]

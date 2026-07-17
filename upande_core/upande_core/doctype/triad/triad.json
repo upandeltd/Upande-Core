@@ -1,26 +1,28 @@
 {
  "actions": [],
- "autoname": "format:{block} - Triad {triad}",
+ "autoname": "format:{row} - Triad {triad}",
  "creation": "2026-07-15 13:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "block",
+  "row",
   "triad",
   "column_break_main",
+  "block",
   "farm",
   "geo_section",
   "geojson"
  ],
  "fields": [
   {
-   "fieldname": "block",
+   "description": "Row this sampling triad sits on (same level as Zone / Orchard Tree)",
+   "fieldname": "row",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Block",
-   "link_filters": "[[\"Warehouse\",\"warehouse_type\",\"=\",\"Block\"]]",
-   "options": "Warehouse",
+   "label": "Row",
+   "link_filters": "[[\"Bed\",\"unit_type\",\"=\",\"Row\"]]",
+   "options": "Bed",
    "reqd": 1
   },
   {
@@ -36,7 +38,16 @@
    "fieldtype": "Column Break"
   },
   {
-   "fetch_from": "block.custom_farm",
+   "fetch_from": "row.greenhouse",
+   "fieldname": "block",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Block",
+   "options": "Warehouse",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "row.farm",
    "fieldname": "farm",
    "fieldtype": "Link",
    "in_standard_filter": 1,

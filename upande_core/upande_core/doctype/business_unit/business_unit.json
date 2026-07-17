@@ -20,12 +20,12 @@
    "unique": 1
   },
   {
-   "description": "A business unit may be owned by more than one company",
    "fieldname": "company",
-   "fieldtype": "Table MultiSelect",
+   "fieldtype": "Link",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Company",
-   "options": "Business Unit Company"
+   "options": "Company"
   },
   {
    "fieldname": "description",

@@ -7,8 +7,12 @@
  "field_order": [
   "row",
   "tree",
+  "tree_number",
+  "tree_code",
   "column_break_main",
+  "block",
   "triad",
+  "is_model",
   "farm",
   "geo_section",
   "geojson"
@@ -20,7 +24,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Row",
-   "options": "Row",
+   "link_filters": "[[\"Bed\",\"unit_type\",\"=\",\"Row\"]]",
+   "options": "Bed",
    "reqd": 1
   },
   {
@@ -32,8 +37,29 @@
    "reqd": 1
   },
   {
+   "description": "Tree label as used in the field, if different from the number",
+   "fieldname": "tree_number",
+   "fieldtype": "Data",
+   "label": "Tree Label"
+  },
+  {
+   "description": "External tree code (e.g. tag / KEPHIS code)",
+   "fieldname": "tree_code",
+   "fieldtype": "Data",
+   "label": "Tree Code"
+  },
+  {
    "fieldname": "column_break_main",
    "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "row.greenhouse",
+   "fieldname": "block",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Block",
+   "options": "Warehouse",
+   "read_only": 1
   },
   {
    "description": "Sampling triad this tree belongs to",
@@ -43,6 +69,14 @@
    "in_standard_filter": 1,
    "label": "Triad",
    "options": "Triad"
+  },
+  {
+   "default": "0",
+   "description": "Model trees are the reference trees used for scouting",
+   "fieldname": "is_model",
+   "fieldtype": "Check",
+   "in_standard_filter": 1,
+   "label": "Is Model Tree"
   },
   {
    "fetch_from": "row.farm",

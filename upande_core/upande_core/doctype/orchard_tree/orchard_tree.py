@@ -10,7 +10,12 @@ from upande_core.utils import validate_structure_level
 
 class OrchardTree(Document):
 	def validate(self):
-		block = frappe.db.get_value("Row", self.row, "block")
+		row_unit_type, block = frappe.db.get_value(
+			"Bed", self.row, ["unit_type", "greenhouse"]
+		)
+		if row_unit_type != "Row":
+			frappe.throw(_("{0} is a bed, not a row. Trees can only be placed on rows.").format(self.row))
+		self.block = block
 		validate_structure_level(block, "Has Orchard Trees", "Block")
 		self.validate_triad_block(block)
 
