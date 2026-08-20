@@ -12,7 +12,7 @@ from frappe.model.document import Document
 from frappe.permissions import get_doctypes_with_custom_docperms
 from frappe.utils import cint
 
-# The rights a Transaction Catalog row may require. Deliberately excludes
+# The rights a grant may carry. Deliberately excludes
 # `email`, `print` and `share`: they are not transactions anyone requests here,
 # and counting them would inflate every profile's tightness score equally
 # without changing the ranking - only the noise in the over-grant diff.

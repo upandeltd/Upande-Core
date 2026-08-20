@@ -11,6 +11,21 @@ and `bench migrate` then skips it forever too.
 
 import frappe
 
+from role_advisor.settings import PRIVILEGED_DOCTYPE_DEFAULTS
+
 
 def after_install():
+	seed_settings()
 	frappe.db.commit()
+
+
+def seed_settings():
+	"""Populate `User Access Settings` child tables. Idempotent."""
+	doc = frappe.get_single("User Access Settings")
+
+	existing = {row.document_type for row in doc.get("privileged_doctypes") or []}
+	for doctype in PRIVILEGED_DOCTYPE_DEFAULTS:
+		if doctype not in existing and frappe.db.exists("DocType", doctype):
+			doc.append("privileged_doctypes", {"document_type": doctype})
+
+	doc.save(ignore_permissions=True)

@@ -1,0 +1,144 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "hash",
+ "creation": "2026-08-20 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "designation",
+  "role_profile",
+  "module_profile",
+  "is_active",
+  "scope_column",
+  "for_company",
+  "for_branch",
+  "for_department",
+  "for_grade",
+  "provenance_section",
+  "confidence",
+  "source",
+  "evidence"
+ ],
+ "fields": [
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Designation",
+   "options": "Designation",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "role_profile",
+   "fieldtype": "Link",
+   "label": "Role Profile",
+   "options": "Role Profile",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "module_profile",
+   "fieldtype": "Link",
+   "label": "Module Profile",
+   "options": "Module Profile"
+  },
+  {
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Is Active",
+   "default": "0",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Only active rows may drive assignment. Anything below High confidence is seeded inactive."
+  },
+  {
+   "fieldname": "scope_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "for_company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Empty means the row applies to every company. Field is prefixed because Frappe stamps frappe.defaults onto any Link field named exactly 'company', which would make an applies-to-all row impossible."
+  },
+  {
+   "fieldname": "for_branch",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "Branch"
+  },
+  {
+   "fieldname": "for_department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department"
+  },
+  {
+   "fieldname": "for_grade",
+   "fieldtype": "Link",
+   "label": "Grade",
+   "options": "Employee Grade"
+  },
+  {
+   "fieldname": "provenance_section",
+   "fieldtype": "Section Break",
+   "label": "Provenance"
+  },
+  {
+   "fieldname": "confidence",
+   "fieldtype": "Select",
+   "label": "Confidence",
+   "options": "\nHigh\nMedium\nLow\nNone",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "Seeded from existing users\nAuthored from intent",
+   "default": "Authored from intent",
+   "read_only": 1
+  },
+  {
+   "fieldname": "evidence",
+   "fieldtype": "Small Text",
+   "label": "Evidence",
+   "read_only": 1,
+   "description": "How the seeder arrived at this row. Observed state, not endorsed state."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-20 00:00:00.000000",
+ "module": "Role Advisor",
+ "name": "Designation Access Map",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "User Manager",
+   "read": 1,
+   "report": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}
