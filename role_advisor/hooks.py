@@ -86,7 +86,12 @@ app_license = "mit"
 # ------------
 
 # before_install = "role_advisor.install.before_install"
-# after_install = "role_advisor.install.after_install"
+
+# Seeds the demo catalogue, roles and role profiles. This must be an
+# after_install hook rather than a patch: frappe.installer.install_app calls
+# set_all_patches_as_completed(), which marks every entry in patches.txt as run
+# without executing it, so a seed patch would never fire on a fresh install.
+after_install = "role_advisor.install.after_install"
 
 # Uninstallation
 # ------------
@@ -138,13 +143,23 @@ app_license = "mit"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+# The capability index is derived from Role Profiles, their roles, and the
+# permission rows behind those roles. Any of these changing makes the cached
+# index wrong, so invalidate it at the source rather than waiting out the TTL.
+doc_events = {
+	"Role Profile": {
+		"on_update": "role_advisor.api.on_permission_source_change",
+		"after_delete": "role_advisor.api.on_permission_source_change",
+	},
+	"Custom DocPerm": {
+		"on_update": "role_advisor.api.on_permission_source_change",
+		"after_delete": "role_advisor.api.on_permission_source_change",
+	},
+	"DocPerm": {
+		"on_update": "role_advisor.api.on_permission_source_change",
+		"after_delete": "role_advisor.api.on_permission_source_change",
+	},
+}
 
 # Scheduled Tasks
 # ---------------
