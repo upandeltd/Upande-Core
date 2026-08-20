@@ -148,16 +148,16 @@ after_install = "role_advisor.install.after_install"
 # index wrong, so invalidate it at the source rather than waiting out the TTL.
 doc_events = {
 	"Role Profile": {
-		"on_update": "role_advisor.api.on_permission_source_change",
-		"after_delete": "role_advisor.api.on_permission_source_change",
+		"on_update": "role_advisor.capability.on_permission_source_change",
+		"after_delete": "role_advisor.capability.on_permission_source_change",
 	},
 	"Custom DocPerm": {
-		"on_update": "role_advisor.api.on_permission_source_change",
-		"after_delete": "role_advisor.api.on_permission_source_change",
+		"on_update": "role_advisor.capability.on_permission_source_change",
+		"after_delete": "role_advisor.capability.on_permission_source_change",
 	},
 	"DocPerm": {
-		"on_update": "role_advisor.api.on_permission_source_change",
-		"after_delete": "role_advisor.api.on_permission_source_change",
+		"on_update": "role_advisor.capability.on_permission_source_change",
+		"after_delete": "role_advisor.capability.on_permission_source_change",
 	},
 }
 
