@@ -1,0 +1,54 @@
+[
+ {
+  "category": "Users",
+  "date_field": "creation",
+  "docstatus": 0,
+  "doctype": "Monitored Doctype",
+  "document_type": "User",
+  "enabled": 1,
+  "filters_json": null,
+  "label": "New Users",
+  "modified": "2026-08-20 15:10:31.462986",
+  "name": "ssqbr7f0km",
+  "sort_order": 1
+ },
+ {
+  "category": "System",
+  "date_field": "creation",
+  "docstatus": 0,
+  "doctype": "Monitored Doctype",
+  "document_type": "Error Log",
+  "enabled": 1,
+  "filters_json": null,
+  "label": "Errors",
+  "modified": "2026-08-20 15:10:31.494375",
+  "name": "ssqimkps5k",
+  "sort_order": 2
+ },
+ {
+  "category": "Work",
+  "date_field": "creation",
+  "docstatus": 0,
+  "doctype": "Monitored Doctype",
+  "document_type": "ToDo",
+  "enabled": 1,
+  "filters_json": null,
+  "label": "ToDos",
+  "modified": "2026-08-20 15:10:31.516840",
+  "name": "ssr5q0t2s2",
+  "sort_order": 3
+ },
+ {
+  "category": "Sales",
+  "date_field": "creation",
+  "docstatus": 0,
+  "doctype": "Monitored Doctype",
+  "document_type": "Sales Order",
+  "enabled": 1,
+  "filters_json": null,
+  "label": "Sales Orders",
+  "modified": "2026-08-20 15:10:31.535573",
+  "name": "ssr27oul4a",
+  "sort_order": 4
+ }
+]

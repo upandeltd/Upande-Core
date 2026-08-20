@@ -1,0 +1,30 @@
+[
+ {
+  "category_name": "Users",
+  "docstatus": 0,
+  "doctype": "Monitored Category",
+  "modified": "2026-08-20 15:10:31.392172",
+  "name": "Users"
+ },
+ {
+  "category_name": "System",
+  "docstatus": 0,
+  "doctype": "Monitored Category",
+  "modified": "2026-08-20 15:10:31.486915",
+  "name": "System"
+ },
+ {
+  "category_name": "Work",
+  "docstatus": 0,
+  "doctype": "Monitored Category",
+  "modified": "2026-08-20 15:10:31.507128",
+  "name": "Work"
+ },
+ {
+  "category_name": "Sales",
+  "docstatus": 0,
+  "doctype": "Monitored Category",
+  "modified": "2026-08-20 15:10:31.527237",
+  "name": "Sales"
+ }
+]

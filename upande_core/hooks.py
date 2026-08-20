@@ -81,6 +81,12 @@ fixtures = [
 			]
 		],
 	},
+	{
+		"doctype": "Monitored Category",
+	},
+	{
+		"doctype": "Monitored Doctype",
+	},
 ]
 
 # Apps
