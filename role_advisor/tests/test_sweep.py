@@ -9,6 +9,7 @@ from role_advisor.tests.fixtures import (
 	clear_map,
 	ensure_designation,
 	ensure_employee,
+	purge_committed_test_data,
 )
 from role_advisor.tests.test_delegation import (
 	ALLOWED_PROFILE,
@@ -21,6 +22,13 @@ DESIGNATION = "_RA Sweep Designation"
 
 
 class TestSweep(IntegrationTestCase):
+	@classmethod
+	def tearDownClass(cls):
+		# `sweep.apply` commits, so this suite's rows survive the per-class
+		# rollback and would otherwise accumulate on the site every run.
+		purge_committed_test_data()
+		super().tearDownClass()
+
 	def setUp(self):
 		build_fixture(self)
 

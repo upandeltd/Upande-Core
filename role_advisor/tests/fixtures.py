@@ -137,3 +137,59 @@ def clear_map(designation: str) -> None:
 def clear_delegate(user: str) -> None:
 	if frappe.db.exists("Delegated User Admin", user):
 		frappe.delete_doc("Delegated User Admin", user, force=True)
+
+
+# Test-data name prefixes. Underscore is a single-character wildcard in SQL
+# LIKE, so any raw-SQL cleanup MUST escape it: `LIKE '\_ra\_%'`, never
+# `LIKE '_ra_%'` - the unescaped form matches real addresses such as
+# "francis@..." and "tracy.keitany@..." and will delete live users.
+TEST_USER_DOMAIN = "@example.com"
+TEST_PREFIX = "_RA "
+
+
+def purge_committed_test_data() -> None:
+	"""Remove test rows that survived rollback.
+
+	`sweep.apply` commits, which defeats `IntegrationTestCase`'s per-class
+	rollback (frappe/tests/classes/integration_test_case.py:72). Any suite that
+	triggers a commit must call this, or it leaves rows on the site.
+	"""
+	users = frappe.get_all(
+		"User",
+		filters={"name": ("like", f"\\_ra\\_%{TEST_USER_DOMAIN}")},
+		pluck="name",
+	)
+
+	for user in users:
+		for doctype, field in (
+			("Access Assignment Log", "target_user"),
+			("Access Assignment Log", "actor"),
+			("User Permission", "user"),
+			("Delegated User Admin", "user"),
+		):
+			for name in frappe.get_all(doctype, filters={field: user}, pluck="name"):
+				frappe.delete_doc(doctype, name, force=True, ignore_permissions=True)
+
+		frappe.db.delete("Has Role", {"parent": user, "parenttype": "User"})
+		frappe.db.delete("User Role Profile", {"parent": user, "parenttype": "User"})
+		frappe.db.delete("Block Module", {"parent": user, "parenttype": "User"})
+		frappe.db.delete("Employee", {"user_id": user})
+		frappe.db.delete("User", {"name": user})
+
+	for doctype, field in (
+		("Designation Access Map", "designation"),
+		("Custom DocPerm", "role"),
+	):
+		for name in frappe.get_all(
+			doctype, filters={field: ("like", f"\\_RA %")}, pluck="name"
+		):
+			frappe.delete_doc(doctype, name, force=True, ignore_permissions=True)
+
+	for doctype in ("Role Profile", "Role", "Designation"):
+		for name in frappe.get_all(
+			doctype, filters={"name": ("like", "\\_RA %")}, pluck="name"
+		):
+			frappe.db.delete("Has Role", {"parent": name, "parenttype": "Role Profile"})
+			frappe.db.delete(doctype, {"name": name})
+
+	frappe.db.commit()
