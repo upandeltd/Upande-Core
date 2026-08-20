@@ -159,6 +159,10 @@ doc_events = {
 		"on_update": "role_advisor.capability.on_permission_source_change",
 		"after_delete": "role_advisor.capability.on_permission_source_change",
 	},
+	"Delegated User Admin": {
+		"on_update": "role_advisor.delegation.clear_cache",
+		"after_delete": "role_advisor.delegation.clear_cache",
+	},
 }
 
 # Scheduled Tasks
@@ -271,3 +275,18 @@ doc_events = {
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+
+
+# Deny-only: core already hooks `User`, and both hook kinds compose by
+# narrowing. `User Permission` has no core hook, which is the gap that let a
+# delegate delete their own Company scoping row.
+permission_query_conditions = {
+	"User": "role_advisor.permissions.user_query_conditions",
+	"User Permission": "role_advisor.permissions.user_permission_query_conditions",
+}
+
+has_permission = {
+	"User": "role_advisor.permissions.user_has_permission",
+	"User Permission": "role_advisor.permissions.user_permission_has_permission",
+	"Delegated User Admin": "role_advisor.permissions.delegated_admin_has_permission",
+}

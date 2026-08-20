@@ -72,32 +72,51 @@ def ensure_user(email: str) -> str:
 
 
 def ensure_employee(user: str, company: str, designation: str | None = None) -> str:
-	"""An active Employee linked to `user`, which is what puts them in scope."""
+	"""An active Employee linked to `user`, which is what puts them in scope.
+
+	Written with raw SQL rather than the ORM, deliberately. This site's Employee
+	carries a thicket of customisation from the Upande apps - a mandatory
+	Employee Number, a "Only Security Head can modify Reference Validated"
+	guard, and an after_insert Server Script that mails about salary structure
+	assignments. None of it relates to what these tests exercise, and
+	`flags.ignore_validate` only skips `validate` (frappe/model/document.py:1399),
+	not `after_insert`.
+
+	All `mapping.employee_scope` needs is a row it can read company, branch,
+	department and grade from.
+	"""
 	name = frappe.db.get_value("Employee", {"user_id": user})
 	if name:
-		doc = frappe.get_doc("Employee", name)
-		doc.company = company
-		doc.status = "Active"
-		if designation:
-			doc.designation = designation
-		doc.save(ignore_permissions=True)
+		frappe.db.set_value(
+			"Employee",
+			name,
+			{"company": company, "status": "Active", "designation": designation},
+			update_modified=False,
+		)
 		return name
 
-	gender = frappe.get_all("Gender", pluck="name", limit=1)[0]
-	doc = {
-		"doctype": "Employee",
-		"first_name": user.split("@")[0],
-		"user_id": user,
-		"company": company,
-		"status": "Active",
-		"date_of_joining": "2020-01-01",
-		"date_of_birth": "1990-01-01",
-		"gender": gender,
-	}
-	if designation:
-		doc["designation"] = designation
+	name = f"_RA-EMP-{frappe.generate_hash(length=8)}"
+	frappe.db.sql(
+		"""
+		insert into `tabEmployee`
+			(name, creation, modified, modified_by, owner, docstatus, idx,
+			 employee_name, first_name, user_id, company, status,
+			 date_of_joining, date_of_birth, designation, employee_number)
+		values
+			(%(name)s, now(), now(), 'Administrator', 'Administrator', 0, 0,
+			 %(label)s, %(label)s, %(user)s, %(company)s, 'Active',
+			 '2020-01-01', '1990-01-01', %(designation)s, %(name)s)
+		""",
+		{
+			"name": name,
+			"label": user.split("@")[0],
+			"user": user,
+			"company": company,
+			"designation": designation,
+		},
+	)
 
-	return frappe.get_doc(doc).insert(ignore_permissions=True).name
+	return name
 
 
 def ensure_designation(designation: str) -> str:
