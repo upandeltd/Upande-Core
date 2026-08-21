@@ -96,6 +96,15 @@ class AccessDashboard {
 							<span><i style="background:rgba(10,10,10,0.04)"></i>${__("Unreachable")}</span>
 						</div>
 					</div>
+					<div>
+						<div class="ra-side__label">${__("Yourself")}</div>
+						<nav class="ra-nav">
+							<a class="ra-tomine">
+								<svg viewBox="0 0 24 24">${ICONS.search}</svg>
+								${__("My Access")}
+							</a>
+						</nav>
+					</div>
 					<div class="ra-side__user">
 						<div class="ra-avatar">${esc((frappe.session.user_fullname || "?").slice(0, 2).toUpperCase())}</div>
 						<div>
@@ -111,10 +120,14 @@ class AccessDashboard {
 		this.$main = this.page.main.find(".ra-main");
 		this.$glance = this.page.main.find(".ra-glance");
 
-		this.page.main.find(".ra-nav a").on("click", (event) => {
+		this.page.main.find(".ra-nav a[data-view]").on("click", (event) => {
 			const view = $(event.currentTarget).data("view");
 			this.go(view);
 		});
+
+		// Administrators are users too: the self-service page is where they see
+		// their own access rather than the estate's.
+		this.page.main.find(".ra-tomine").on("click", () => frappe.set_route("my-access"));
 	}
 
 	go(view) {

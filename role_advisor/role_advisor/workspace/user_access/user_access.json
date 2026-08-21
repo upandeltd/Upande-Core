@@ -1,7 +1,7 @@
 {
  "app": "role_advisor",
  "charts": [],
- "content": "[{\"id\": \"ra_head\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\">Assign access</span>\", \"col\": 12}}, {\"id\": \"ra_sc0\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Access Dashboard\", \"col\": 3}}, {\"id\": \"ra_sc1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"User Access Console\", \"col\": 4}}, {\"id\": \"ra_sc2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Designation Access Map\", \"col\": 5}}, {\"id\": \"ra_sc3\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Delegated User Admin\", \"col\": 5}}, {\"id\": \"ra_sc4\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Access Assignment Log\", \"col\": 5}}, {\"id\": \"ra_sp1\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"ra_c1\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}, {\"id\": \"ra_c2\", \"type\": \"card\", \"data\": {\"card_name\": \"Configuration\", \"col\": 4}}, {\"id\": \"ra_c3\", \"type\": \"card\", \"data\": {\"card_name\": \"Core Permissions\", \"col\": 4}}]",
+ "content": "[{\"id\": \"ra_head\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\">Assign access</span>\", \"col\": 12}}, {\"id\": \"ra_sc0\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Access Dashboard\", \"col\": 3}}, {\"id\": \"ra_sc1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"User Access Console\", \"col\": 4}}, {\"id\": \"ra_sc2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Designation Access Map\", \"col\": 5}}, {\"id\": \"ra_sc3\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Delegated User Admin\", \"col\": 5}}, {\"id\": \"ra_sc5\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"My Access\", \"col\": 3}}, {\"id\": \"ra_sc4\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Access Assignment Log\", \"col\": 5}}, {\"id\": \"ra_sp1\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"ra_c1\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}, {\"id\": \"ra_c2\", \"type\": \"card\", \"data\": {\"card_name\": \"Configuration\", \"col\": 4}}, {\"id\": \"ra_c3\", \"type\": \"card\", \"data\": {\"card_name\": \"Core Permissions\", \"col\": 4}}]",
  "creation": "2026-08-21 00:00:00",
  "custom_blocks": [],
  "docstatus": 0,
@@ -166,7 +166,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-08-21 13:00:00.000000",
+ "modified": "2026-08-21 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "Role Advisor",
  "name": "User Access",
@@ -175,7 +175,14 @@
  "parent_page": "",
  "public": 1,
  "quick_lists": [],
- "roles": [],
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "User Manager"
+  }
+ ],
  "sequence_id": 1.0,
  "shortcuts": [
   {
@@ -213,6 +220,13 @@
    "label": "Access Assignment Log",
    "link_to": "Access Assignment Log",
    "type": "DocType"
+  },
+  {
+   "label": "My Access",
+   "link_to": "my-access",
+   "type": "Page",
+   "color": "Green",
+   "doc_view": ""
   }
  ],
  "title": "User Access",

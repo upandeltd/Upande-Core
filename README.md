@@ -74,6 +74,33 @@ A bundle earns its place only where one ask spans several documents — "run
 payroll" needs Salary Slip, Payroll Entry and Journal Entry — and a bundle of
 one is refused, because it is pure indirection over a document search.
 
+### My Access — self-service
+
+```
+/desk/my-access
+```
+
+Open to **any desk user**, with no role restriction. Shows what the caller can
+do today — their access level, how many documents they can reach, and which
+areas — then lets them name what they cannot do and send a request.
+
+Every server method it uses is about the caller and **takes no user argument**,
+so there is no parameter to point at somebody else. `my_access()` has an empty
+signature, and a test asserts that.
+
+A requester is told what they would *gain*, never a profile's over-grant: the
+over-grant matters to whoever approves, not to whoever is asking. They also
+cannot fulfil their own request — asking and granting stay separate people.
+
+The two pages link to each other: an administrator gets an "Open Role Advisor"
+banner here, and the dashboard sidebar carries a **My Access** link, because
+administrators are users too. The banner appears only when the caller actually
+holds an administrative role.
+
+The `User Access` workspace is restricted to the administrative roles — showing
+an employee a workspace whose every link refuses is worse than not showing it.
+`My Access` reaches them through the desk's Pages list instead.
+
 ### Access Dashboard
 
 ```

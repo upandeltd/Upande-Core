@@ -444,3 +444,71 @@ def clear_catalogue() -> int:
 	print(f"removed {len(names)} bundles")
 
 	return len(names)
+
+
+# ---------------------------------------------------------------------------
+# Self-service. Every method here is about the caller and takes no user
+# argument, so there is no parameter to tamper with - an ordinary employee
+# cannot ask these anything about anybody else.
+# ---------------------------------------------------------------------------
+
+
+@frappe.whitelist()
+def my_access() -> dict:
+	"""What the caller can do today, in their own terms."""
+	user = frappe.session.user
+
+	profiles = capability.get_user_role_profiles(user)
+	index = capability.build_capability_index()
+
+	granted: dict[str, set[str]] = {}
+	for profile in profiles:
+		for doctype, rights in index.get(profile, {}).items():
+			granted.setdefault(doctype, set()).update(rights)
+
+	module_of = {
+		row["name"]: row["module"]
+		for row in frappe.get_all("DocType", fields=["name", "module"])
+	}
+	areas: dict[str, int] = {}
+	for doctype in granted:
+		module = module_of.get(doctype)
+		if module:
+			areas[module] = areas.get(module, 0) + 1
+
+	employee = frappe.db.get_value(
+		"Employee",
+		{"user_id": user, "status": "Active"},
+		["company", "department", "designation"],
+		as_dict=True,
+	)
+
+	return {
+		"user": user,
+		"full_name": frappe.db.get_value("User", user, "full_name"),
+		"profiles": profiles,
+		"roles": frappe.db.count("Has Role", {"parent": user, "parenttype": "User"}),
+		"doctypes": len(granted),
+		"grants": capability.total_perm_count(granted),
+		"employee": employee,
+		"areas": [
+			{"module": module, "doctypes": count}
+			for module, count in sorted(areas.items(), key=lambda kv: -kv[1])[:12]
+		],
+		# Whether to offer the full dashboard at all.
+		"is_administrator": bool(
+			{"System Manager", settings.delegate_role()} & set(frappe.get_roles())
+		),
+	}
+
+
+@frappe.whitelist()
+def check_for_me(requirements) -> dict:
+	"""Can I already do this? Resolves for the caller and nobody else."""
+	return resolve(frappe.session.user, requirements)
+
+
+@frappe.whitelist()
+def request_for_me(requirements, reason: str = "") -> dict:
+	"""Raise a request for the caller. No user argument, by design."""
+	return submit_request(frappe.session.user, requirements, reason)
