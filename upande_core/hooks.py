@@ -114,16 +114,18 @@ fixtures = [
 
 # required_apps = []
 
-# Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "upande_core",
-# 		"logo": "/assets/upande_core/logo.png",
-# 		"title": "Upande Core",
-# 		"route": "/upande_core",
-# 		"has_permission": "upande_core.api.permission.has_app_permission"
-# 	}
-# ]
+# IT Operations is one page and one door. The tile used to belong to
+# role_advisor and pointed at its desk page; that page is no longer the UI, so
+# the entry moved here along with the dashboard.
+add_to_apps_screen = [
+	{
+		"name": "upande_core",
+		"logo": "/assets/upande_core/images/it-operations-logo.svg",
+		"title": "IT Operations",
+		"route": "/it-dashboard",
+		"has_permission": "upande_core.permissions.has_app_permission",
+	}
+]
 
 # Includes in <head>
 # ------------------
