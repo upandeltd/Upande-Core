@@ -12,9 +12,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>IT Dashboard | Kaitet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="/assets/frappe/js/frappe-web.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Poppins:wght@400;500;600&display=swap');
 :root{
@@ -728,32 +726,13 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
         <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/><circle cx="12" cy="12" r="4"/></svg>
         Helpdesk <span class="badge" id="b-helpdesk">·</span>
       </a>
-      <div class="group-lbl">Access & Identity</div>
-      <a class="nav-item" data-nav="users" href="javascript:void(0)">
-        <svg class="ic" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        Users &amp; Access <span class="badge" id="b-users">·</span>
+      <div class="group-lbl">Access</div>
+      <a class="nav-item" data-nav="ra-anomalies" href="javascript:void(0)">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Anomalies <span class="badge" id="b-ra-anomalies">·</span>
       </a>
+      <div class="group-lbl">Workforce</div>
       <a class="nav-item" href="it-workforce"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Workforce</a>
-      <a class="nav-item" data-nav="roles" id="nav-roles" href="javascript:void(0)" style="display:none">
-        <svg class="ic" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 11 2 2 4-4"/></svg>
-        Role Manager
-      </a>
-      <a class="nav-item" data-nav="profiles" id="nav-profiles" href="javascript:void(0)" style="display:none">
-        <svg class="ic" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        Role Profiles
-      </a>
-      <a class="nav-item" data-nav="rolecaps" id="nav-rolecaps" href="javascript:void(0)" style="display:none">
-        <svg class="ic" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9"/><path d="M16 4l4 4-4 4"/></svg>
-        Role Capabilities
-      </a>
-      <a class="nav-item" data-nav="workspaces" id="nav-workspaces" href="javascript:void(0)" style="display:none">
-        <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-        Workspace Access
-      </a>
-      <a class="nav-item" data-nav="doctypes" id="nav-doctypes" href="javascript:void(0)" style="display:none">
-        <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/></svg>
-        Doctype Access
-      </a>
       <div class="group-lbl">Infrastructure</div>
       <a class="nav-item" data-nav="assets" href="javascript:void(0)">
         <svg class="ic" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
@@ -874,98 +853,35 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
       </section>
 
       <!-- USERS -->
-      <section class="panel" data-panel="users" style="display:none">
-        <div class="aph-page-hd"><div class="ttl">Users &amp; Access</div><div class="sub">Accounts, activity &amp; access profiles (source: User · internal @upande accounts hidden)</div></div>
-        <div class="aph-card" style="margin-bottom:16px">
-          <div class="aph-card-body" style="display:flex;flex-direction:column;gap:8px">
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-              <span class="seg-label">Find user</span>
-              <input class="aph-in" id="us-search" type="text" placeholder="Search by name or email…" style="max-width:340px" autocomplete="off">
-              <span class="dim" style="font-size:11px">Click a result to view their role profile &amp; roles</span>
-            </div>
-            <div id="us-search-res"></div>
-          </div>
-        </div>
-        <div class="aph-kpis" id="us-kpis"></div>
-        <div class="aph-grid">
-          <div class="aph-card"><div class="aph-card-hd"><div class="ttl">Users by role profile</div></div><div class="aph-card-body"><div class="chart-box"><canvas id="us-rp"></canvas></div></div></div>
-          <div class="aph-card"><div class="aph-card-hd"><div class="ttl">By module profile</div><div class="sub">click a count to drill</div></div><div class="aph-card-body padless"><div class="scroll"><table class="aph-tbl"><thead><tr><th>Module profile</th><th class="num">Users</th></tr></thead><tbody id="us-mp"></tbody></table></div></div></div>
-        </div>
-        <div class="aph-grid">
-          <div class="aph-card"><div class="aph-card-hd"><div class="ttl">Recently active</div></div><div class="aph-card-body padless"><div class="scroll"><table class="aph-tbl"><thead><tr><th>User</th><th>Type</th><th>Last active</th><th>Role profile</th></tr></thead><tbody id="us-active"></tbody></table></div></div></div>
-          <div class="aph-card"><div class="aph-card-hd"><div class="ttl">Inactive &amp; disabled</div><div class="sub">no activity 90d+ or disabled</div></div><div class="aph-card-body padless"><div class="scroll"><table class="aph-tbl"><thead><tr><th>User</th><th>Status</th><th>Last active</th></tr></thead><tbody id="us-inactive"></tbody></table></div></div></div>
-        </div>
-      </section>
+      
 
       <!-- ROLE MANAGER -->
-      <section class="panel" data-panel="roles" style="display:none">
-        <div class="aph-page-hd"><div class="ttl">Role Manager</div><div class="sub">Assign roles to users &middot;</div></div>
-        <div class="aph-card">
-          <div class="aph-card-hd">
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;width:100%">
-              <span class="seg-label">Role</span>
-              <select class="aph-in" id="rm-role" style="max-width:300px"><option value="">— Select a role —</option></select>
-              <button class="aph-btn" id="rm-add" style="background:#475467">+ Add this role to a profile</button>
-              <span style="flex:1"></span>
-              <button class="aph-btn" id="rm-create">+ Create user</button>
-            </div>
-          </div>
-          <div class="aph-card-body padless"><div class="scroll"><div id="rm-body" style="padding:14px"><div class="aph-empty">Select a role above to see and manage the users who hold it.</div></div></div></div>
-        </div>
-      </section>
+      
 
       <!-- WORKSPACE ACCESS -->
-      <section class="panel" data-panel="workspaces" style="display:none">
-        <div class="aph-page-hd"><div class="ttl">Workspace Access</div><div class="sub">Control which roles can see each workspace in the sidebar. A workspace with <b>no roles is visible to everyone</b>; adding roles hides it from anyone without one of them (company-wide).</div></div>
-        <div class="aph-card">
-          <div class="aph-card-hd"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;width:100%">
-            <span class="seg-label">Workspace</span>
-            <select class="aph-in" id="ws-pick" style="max-width:340px"><option value="">— Select a workspace —</option></select>
-            <span style="flex:1"></span>
-            <span class="seg-label">Copy roles from profile</span>
-            <select class="aph-in" id="ws-copyprof" style="max-width:240px"><option value="">— Role Profile —</option></select>
-          </div></div>
-          <div id="ws-body" style="padding:14px"><div class="aph-empty">Select a workspace to view and edit which roles can see it.</div></div>
-        </div>
-        <div class="aph-card" style="margin-top:14px">
-          <div class="aph-card-hd"><div class="ttl" style="font-size:13px">All workspaces</div></div>
-          <div style="max-height:55vh;overflow:auto"><div id="ws-list" style="padding:0"></div></div>
-        </div>
-      </section>
+      
 
       <!-- ROLE PROFILES -->
-      <section class="panel" data-panel="profiles" style="display:none">
-        <div class="aph-page-hd"><div class="ttl">Role Profiles</div><div class="sub">What each role profile bundles, how many users hold it, and which workspaces its roles can reach. Click a profile, then a role, to see exactly what that role can do.</div></div>
-        <div class="aph-card">
-          <div class="aph-card-hd"><div style="display:flex;gap:10px;align-items:center;width:100%"><span class="seg-label">Filter</span><input class="aph-in" id="pf-filter" placeholder="filter profiles…" style="max-width:260px"><span style="flex:1"></span><span class="seg-label" id="pf-count"></span></div></div>
-          <div style="max-height:55vh;overflow:auto"><div id="pf-list" style="padding:0"></div></div>
-        </div>
-        <div id="pf-detail"></div>
-        <div id="pf-roledetail"></div>
-      </section>
+      
 
       <!-- ROLE CAPABILITIES -->
-      <section class="panel" data-panel="rolecaps" style="display:none">
-        <div class="aph-page-hd"><div class="ttl">Role Capabilities</div><div class="sub">Every role and what it can do. Click a role to see its doctype permissions (read / write / create / delete / submit), the workspaces it can see, and how many users hold it.</div></div>
-        <div class="aph-card">
-          <div class="aph-card-hd"><div style="display:flex;gap:10px;align-items:center;width:100%"><span class="seg-label">Filter</span><input class="aph-in" id="rc-filter" placeholder="filter roles…" style="max-width:260px"><span style="flex:1"></span><span class="seg-label" id="rc-count"></span></div></div>
-          <div style="max-height:62vh;overflow:auto"><div id="rc-list" style="padding:0"></div></div>
-        </div>
-        <div id="rc-detail"></div>
-      </section>
+      
 
       <!-- DOCTYPE ACCESS -->
-      <section class="panel" data-panel="doctypes" style="display:none">
-        <div class="aph-page-hd"><div class="ttl">Doctype Access</div><div class="sub">Business documents — who can access each and what it's for. Settings, Mpesa/integrations, APIs and developer/script doctypes are excluded.</div></div>
-        <div class="aph-card">
-          <div class="aph-card-hd"><div style="display:flex;gap:10px;align-items:center;width:100%"><span class="seg-label">Filter</span><input class="aph-in" id="dt-filter" placeholder="filter doctypes / modules…" style="max-width:280px"><span style="flex:1"></span><span class="seg-label" id="dt-count"></span></div></div>
-          <div style="max-height:55vh;overflow:auto"><div id="dt-list" style="padding:0"></div></div>
-        </div>
-        <div id="dt-detail"></div>
-      </section>
+      
 
       <!-- ERROR MESSAGES -->
-      <section class="panel" data-panel="errors" style="display:none">
+<section class="panel ra-dash" data-panel="ra-anomalies" style="display:none">
+        <div class="ra-head">
+          <div>
+            <div class="ra-eyebrow">Role Advisor · whole estate</div>
+            <h1 class="ra-title">Anomalies &amp; Discrepancies</h1>
+            <p class="ra-sub">An anomaly is a grant that is wrong on its own terms. A discrepancy is a grant that disagrees with something else that is also true &mdash; the same job held differently, roles a profile does not account for, an account that contradicts policy.</p>
+          </div>
+        </div>
+        <div class="ra-mount"></div>
+      </section>
+            <section class="panel" data-panel="errors" style="display:none">
         <div class="aph-page-hd"><div class="ttl">Error Messages</div><div class="sub">Recent system errors (Error Log) with per-user visibility. Pick a user or click a user in the table to filter; click a row for the full traceback.</div></div>
         <div class="aph-card">
           <div class="aph-card-hd"><div style="display:flex;gap:10px;align-items:center;width:100%;flex-wrap:wrap">
@@ -1120,7 +1036,7 @@ function kpi(lbl,v,sub,icon,drl){
 function setKpis(id,arr){var el=$(id);if(el)el.innerHTML=arr.join('');}
 function loadingTbody(id,cols){var el=$(id);if(el)el.innerHTML='<tr><td colspan="'+cols+'"><div class="aph-loading"><div class="spinner"></div>Loading…</div></td></tr>';}
 function emptyTbody(id,cols,msg){var el=$(id);if(el)el.innerHTML='<tr><td colspan="'+cols+'"><div class="aph-empty">'+esc(msg||'No data')+'</div></td></tr>';}
-function chart(id,cfg){var el=$(id);if(!el)return;if(CH[id]){try{CH[id].destroy();}catch(e){}}CH[id]=new Chart(el.getContext('2d'),cfg);}
+function chart(id,cfg){var el=$(id);if(!el)return;if(!window.Chart){el.style.display='none';return;}if(CH[id]){try{CH[id].destroy();}catch(e){}}CH[id]=new Chart(el.getContext('2d'),cfg);}
 function chartEmpty(id){var el=$(id);if(el&&el.parentNode)el.parentNode.innerHTML='<div class="aph-empty">No data</div>';}
 function bar(id,labels,data,label){if(!labels.length){chartEmpty(id);return;}
   chart(id,{type:'bar',data:{labels:labels,datasets:[{label:label||'',data:data,backgroundColor:PAL[1],borderRadius:3,maxBarThickness:34}]},
@@ -1906,14 +1822,15 @@ document.addEventListener('click',function(e){var t=e.target;
   var ru=t.closest&&t.closest('[data-roleusers]');if(ru){showUsersWithRole(ru.getAttribute('data-roleusers'));return;}
   var pu=t.closest&&t.closest('[data-pfusers]');if(pu){showUsersWithProfile(pu.getAttribute('data-pfusers'));return;}
 });
-var LOADERS={helpdesk:loadHelpdesk,assets:loadAssets,users:loadUsers,roles:loadRoleMgr,workspaces:loadWorkspaces,profiles:loadProfiles,rolecaps:loadRoleCaps,doctypes:loadDoctypes,errors:loadErrors,audit:loadAudit,system:loadSystem,biometric:loadBiometric,shifts:loadShifts};
-var TITLES={helpdesk:'Helpdesk',assets:'Assets',users:'Users & Access',roles:'Role Manager',workspaces:'Workspace Access',profiles:'Role Profiles',rolecaps:'Role Capabilities',doctypes:'Doctype Access',errors:'Error Messages',audit:'Audit Trail',system:'System Health',devices:'Devices',biometric:'Biometric Status',shifts:'Shifts'};
+var LOADERS={'ra-anomalies':function(){return window.UpandeAccess&&window.UpandeAccess.load('ra-anomalies');},helpdesk:loadHelpdesk,assets:loadAssets,errors:loadErrors,audit:loadAudit,system:loadSystem,biometric:loadBiometric,shifts:loadShifts};
+var TITLES={'ra-anomalies':'Anomalies & Discrepancies',helpdesk:'Helpdesk',assets:'Assets',errors:'Error Messages',audit:'Audit Trail',system:'System Health',devices:'Devices',biometric:'Biometric Status',shifts:'Shifts'};
 var CAT_PANELS={helpdesk:1,assets:1,system:1};
 
 function loadPanel(p,force){
   if(force)State.loaded[p]=false;
   if(State.loaded[p])return;
   State.loaded[p]=true;
+  if(typeof LOADERS[p]!=='function')return;  /* some panels load from switchPanel */
   Promise.resolve().then(function(){return LOADERS[p]();}).catch(function(e){console.error('IT dashboard panel error',p,e);State.loaded[p]=false;});
 }
 function openCreateUser(preRp){
@@ -2328,8 +2245,10 @@ function switchPanel(p){
   var isShifts=(p==='shifts');
   var tc=$('au-topctl');if(tc)tc.style.display=isAudit?'flex':'none';
   var sc=$('sh-topctl');if(sc)sc.style.display=isShifts?'flex':'none';
-  var pr=$('presets');if(pr)pr.style.display=(isAudit||isShifts)?'none':'';
-  var dpl=$('datePill');if(dpl)dpl.style.display=(isAudit||isShifts)?'none':'';
+  var isAccess=(p.indexOf('ra-')===0);
+  var pr=$('presets');if(pr)pr.style.display=(isAudit||isShifts||isAccess)?'none':'';
+  var dpl=$('datePill');if(dpl)dpl.style.display=(isAudit||isShifts||isAccess)?'none':'';
+  var cw=$('catWrap');if(cw&&isAccess)cw.style.display='none';
   var mn=document.querySelector('.aph-main');if(mn)mn.scrollTo({top:0});
   loadPanel(p);
   if(p==='devices')loadDevices();
@@ -2389,8 +2308,9 @@ auInitDatePicker();
   shAssignModal(list,(SH.view==='unassigned')?'assign':'change','');});})();
 document.addEventListener('click',function(e){if(!(e.target.closest&&e.target.closest('.auss')))document.querySelectorAll('.auss-pop').forEach(function(p){p.style.display='none';});});
 
-/* role manager control */
-$('rm-role').addEventListener('change',function(){RM.role=$('rm-role').value;renderRoleUsers();});
+/* role manager control - the panel it belonged to is now Role Advisor's,
+   so this is only still here for a site that has not rebuilt assets yet */
+(function(){var rr=$('rm-role');if(rr)rr.addEventListener('change',function(){RM.role=rr.value;renderRoleUsers();});})();
 
 /* user search (Users panel) */
 (function(){var si=$('us-search');if(si)si.addEventListener('input',function(){renderUserSearch(this.value);});})();
@@ -2406,7 +2326,7 @@ $('rm-role').addEventListener('change',function(){RM.role=$('rm-role').value;ren
 })();
 
 /* boot */
-if(window.Chart&&Chart.defaults){Chart.defaults.font.family="'Inter',system-ui,sans-serif";Chart.defaults.font.size=10;Chart.defaults.color="#6b6b6b";}
+if(window.Chart&&Chart.defaults){}
 /* Populate every sidebar badge on load/refresh (not only when a tab opens).
    Runs each badge panel's loader in the background; skips the active one. */
 function refreshAllBadges(force){
@@ -2430,4 +2350,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 </script>
 
 
+<!-- Loaded last on purpose: `.aph * { margin:0; padding:0 }` above is
+     equal-specificity with the access components' own padding, so the cascade
+     decides on document order. Anything earlier gets flattened. -->
+<link rel="stylesheet" href="/assets/upande_core/css/access.css">
+<script src="/assets/upande_core/js/access.js" defer></script>
 {% endblock %}
