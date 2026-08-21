@@ -525,9 +525,7 @@ git commit -m "refactor: strip prototype, extract capability index
 
 Deletes the transaction-catalog console, the five RA Demo doctypes and
 demo_data seeding. Salvages build_capability_index() into its own module
-with its four tests rewritten against synthetic fixtures.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+with its four tests rewritten against synthetic fixtures."
 ```
 
 ---
@@ -903,9 +901,7 @@ git commit -m "feat: add User Access Settings with spec defaults
 
 Single doctype plus typed accessors that fall back to the Kaitet frame,
 so no caller handles an unsaved Single. Privileged doctypes are config
-rather than a constant, keeping the computed denylist portable.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+rather than a constant, keeping the computed denylist portable."
 ```
 
 ---
@@ -1179,9 +1175,7 @@ git commit -m "feat: add Designation Access Map doctype
 
 Scope fields form a key resolved most-specific-wins. Uniqueness is
 enforced in validate because MariaDB unique indexes treat each NULL as
-distinct, which would accept duplicate all-company rows.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+distinct, which would accept duplicate all-company rows."
 ```
 
 ---
@@ -1634,9 +1628,7 @@ git commit -m "feat: add Delegated User Admin with computed privilege check
 The allowlist is what an admin may hand out, not what they hold. Any
 profile granting write-equivalent rights on a privileged doctype is
 refused at save; read is excluded because User Manager legitimately holds
-read on Role Profile in production.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+read on Role Profile in production."
 ```
 
 ---
@@ -1919,9 +1911,7 @@ git commit -m "feat: add immutable Access Assignment Log
 
 No role holds write or delete; rows are written only by audit.log_assignment.
 Module profile fields are Data rather than Link so a log row survives deletion
-of its referents. No-ops are logged too, so the trail has no holes.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+of its referents. No-ops are logged too, so the trail has no holes."
 ```
 
 ---
@@ -2250,9 +2240,7 @@ git commit -m "feat: add map resolution and tightest-wins tie-break
 
 Resolution drops specificity from the narrow end, so SCOPE_DIMENSIONS
 order is load-bearing. Unset dimensions filter on ('is', 'not set') rather
-than None, which would read as 'no filter' and match every row.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+than None, which would read as 'no filter' and match every row."
 ```
 
 ---
@@ -2621,9 +2609,7 @@ git commit -m "feat: seed the access map from observed assignments
 Tie-break runs only over materially supported candidates, so one stray
 assignment cannot beat 29 peers on tightness. Disagreement between the
 majority and the least-privilege pick deactivates the row whatever its
-confidence tier, since that is exactly where a human is needed.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+confidence tier, since that is exactly where a human is needed."
 ```
 
 ---
@@ -2991,9 +2977,7 @@ git commit -m "feat: add delegation scope resolution and gates
 Targets with no active Employee have no company and are unreachable by any
 delegate - deliberate, since defaulting them to in-scope would be the worst
 failure mode available. The privileged check is repeated at grant time
-because a profile can be widened after being allowlisted.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+because a profile can be widened after being allowlisted."
 ```
 
 ---
@@ -3242,9 +3226,7 @@ git commit -m "feat: scope a delegate's User visibility
 
 Two layers, because list filtering does not stop a typed URL. Both return
 unrestricted for anyone without an enabled Delegated User Admin record, so
-installing this changes nothing until a record is created.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+installing this changes nothing until a record is created."
 ```
 
 ---
@@ -3502,9 +3484,7 @@ git commit -m "fix: stop a delegate unlocking their own scope
 User Permission has no core permission hooks, and User Manager holds full
 CRUD on it, so a delegate could delete their own Company row. Denies all
 access to a delegate's own rows including read, and confines the
-Delegated User Admin record to read-own.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+Delegated User Admin record to read-own."
 ```
 
 ---
@@ -3821,9 +3801,7 @@ git commit -m "feat: add the delegated assignment API
 
 Four whitelisted methods, each gating before it acts. assign_access takes
 three arguments and can change exactly three things, which is what makes
-user_type escalation structurally impossible rather than merely forbidden.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+user_type escalation structurally impossible rather than merely forbidden."
 ```
 
 ---
@@ -4089,9 +4067,7 @@ git commit -m "feat: add Designation Gap report
 
 An activated map row outranks peer evidence; where neither exists the row
 says so explicitly rather than proposing nothing silently. Ordered most
-actionable first.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+actionable first."
 ```
 
 ---
@@ -4403,9 +4379,7 @@ git commit -m "feat: add Module Exposure and Role Drift reports
 Module Exposure separates unrestricted users from hand-blocked ones,
 because assigning a profile to the latter discards their tuning. Role
 Drift marks HRMS-healed approver roles as safe so the genuine risks are
-not buried under 20 false positives.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+not buried under 20 false positives."
 ```
 
 ---
@@ -4754,9 +4728,7 @@ git commit -m "feat: add System Manager Audit and Role Profile Overgrant reports
 
 The over-grant report is the only view onto what users can actually do;
 module profiles are navigation only. Both are report-only - no role is
-revoked automatically.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+revoked automatically."
 ```
 
 ---
@@ -5074,9 +5046,7 @@ git commit -m "feat: add the bulk sweep with dry-run and apply
 Distinguishes 'no map row' from 'a row nobody has ruled on', because the
 second is a decision waiting rather than a gap. Skipped users are logged
 too, so the trail can answer whether a change was attempted. Batched
-commits so a late failure does not discard earlier work.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+commits so a late failure does not discard earlier work."
 ```
 
 ---
@@ -5327,9 +5297,7 @@ git commit -m "feat: derive draft module profiles from role profiles
 
 Profiles granting nothing are skipped, since blocking all 73 modules
 leaves an empty desk rather than a tight one. Drafts are name-prefixed
-because Module Profile has no enabled field to flag them with.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+because Module Profile has no enabled field to flag them with."
 ```
 
 ---

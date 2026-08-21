@@ -494,7 +494,7 @@ Nothing before step 3 changes what any of the 374 users can do.
 
 ## 11. Open items
 
-- Live-site verification of §2 figures once `claude.ai Kaitet` OAuth is completed.
+- Live-site verification of §2 figures against the Kaitet v15 instance.
   Module profiles and the 41-user gap are the most likely to have moved.
 - Whether the Restricted / Approver / Can Purchase variants follow `Employee.grade`. If
   confirmed, `authority_level` becomes a viable fourth map dimension (§4.1).
