@@ -157,21 +157,32 @@ def on_permission_source_change(doc=None, method=None) -> None:
 	clear_capability_index()
 
 
+def capabilities_of_roles(roles) -> dict[str, set[str]]:
+	"""What holding all of `roles` at once permits: {doctype: {right}}.
+
+	`_capabilities_from_rows` is keyed by *role*; this flattens that into the
+	one shape the rest of the app reasons in. It exists because reading the
+	nested form as though it were the flat one is a silent bug rather than a
+	loud one - the keys become role names, every doctype comparison misses, and
+	the caller concludes the roles grant nothing dangerous.
+	"""
+	by_role = _capabilities_from_rows(_perm_rows_for_roles(sorted(roles)))
+
+	union: dict[str, set[str]] = {}
+	for caps in by_role.values():
+		for doctype, perms in caps.items():
+			union.setdefault(doctype, set()).update(perms)
+
+	return union
+
+
 def site_wide_role_capabilities() -> dict[str, set[str]]:
 	"""Union of what *every* role on the site can do, profile-bundled or not.
 
 	Used only to tell the two Gap kinds apart, so it is computed on demand
 	rather than cached with the index.
 	"""
-	roles = frappe.get_all("Role", pluck="name")
-	role_capabilities = _capabilities_from_rows(_perm_rows_for_roles(roles))
-
-	union: dict[str, set[str]] = {}
-	for caps in role_capabilities.values():
-		for doctype, perms in caps.items():
-			union.setdefault(doctype, set()).update(perms)
-
-	return union
+	return capabilities_of_roles(frappe.get_all("Role", pluck="name"))
 
 
 def total_perm_count(capabilities: dict[str, set[str]]) -> int:

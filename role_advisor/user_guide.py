@@ -248,6 +248,50 @@ para(
     italic=True,
 )
 
+para("Replace, or add?", "Heading 3")
+para(
+    "Giving someone an access level normally replaces the one they had. That is right "
+    "when their job changed, and wrong when their job merely grew — nobody wants to take "
+    "away the work someone already does in order to let them do one more thing. So the "
+    "answer screen offers both."
+)
+
+table(
+    ["", "What happens", "Use it when"],
+    [
+        ["Replace with …",
+         "They end up holding exactly the access level that covers the ask, and lose "
+         "anything it does not cover.",
+         "The job changed. A packer became a supervisor."],
+        ["Add to what they have",
+         "Their existing roles are kept and the smallest set of roles that covers the "
+         "ask is added. A profile carrying both is created, or reused if one already "
+         "exists. Nothing is taken away.",
+         "The job grew. A buyer now also approves leave."],
+    ],
+    widths=[1.5, 3.0, 1.7],
+)
+
+para(
+    "The addition is roles, not another whole access level. Borrowing somebody else's "
+    "access level to get at one permission inside it hands over everything else in it too."
+)
+
+callout(
+    "Why the same addition reuses a profile",
+    "If five people each need the same extra permission, adding it five times would create "
+    "five access levels that permit exactly the same things — which the Anomalies screen "
+    "would then report as a problem, correctly. So an identical one is found and reused "
+    "instead, and the name tells you what it is: Purchase + Leave Approver.",
+)
+
+para(
+    "Delegated administrators cannot do this unless a System Manager switches it on, and "
+    "even then only from roles that are already inside the access levels they are allowed "
+    "to hand out. Otherwise the allowlist would stop meaning anything.",
+    italic=True,
+)
+
 para("If you already know which access level you want", "Heading 3")
 para(
     "Switch to By profile at the top of the screen. That lists what you may hand out, smallest "
@@ -475,6 +519,12 @@ bullets([
     ("“Administrator cannot be assigned a role profile”", "assigning an access level replaces "
      "the holder's roles, so pointing it at Administrator would prune the one account "
      "guaranteed to be able to undo it. Refused for everyone."),
+    ("“… already covers every one of these. Nothing to add”", "they can already do it. "
+     "Check whether the real problem is a user permission or a company restriction rather "
+     "than an access level."),
+    ("“Composing a new profile is switched off for delegated administrators”", "a System "
+     "Manager can enable it in Access Settings, and even then only from roles inside the "
+     "delegate's own allowlist."),
 ])
 
 para("A note on the current stage", "Heading 2")

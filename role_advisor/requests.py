@@ -318,15 +318,25 @@ def _roles_that_cover(requirements: list[dict]) -> list[str]:
 	chosen = []
 
 	while outstanding:
-		best, covered = None, set()
+		best, covered, best_key = None, set(), None
 		for role, caps in role_caps.items():
 			hits = {
 				(doctype, right)
 				for doctype, right in outstanding
 				if right in caps.get(doctype, ())
 			}
-			if len(hits) > len(covered):
-				best, covered = role, hits
+			if not hits:
+				continue
+			# Ties are the common case - a single missing permission is granted
+			# by dozens of roles - and the tie-break is the whole difference
+			# between suggesting `Purchase User` and suggesting `System Manager`.
+			# Most covered first, then the narrowest role, then name for
+			# repeatability. Taking the first role to tie, which is what a bare
+			# `>` comparison does, means taking whatever the query happened to
+			# return first.
+			key = (-len(hits), capability.total_perm_count(caps), role)
+			if best_key is None or key < best_key:
+				best, covered, best_key = role, hits, key
 		if not best:
 			break
 		chosen.append(best)

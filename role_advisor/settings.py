@@ -49,6 +49,7 @@ DEFAULTS = {
 	"delegate_role": "User Manager",
 	"allow_multiple_profiles": 0,
 	"require_employee_link": 1,
+	"allow_delegate_compose": 0,
 	"use_company": 1,
 	"use_branch": 1,
 	"use_department": 0,
@@ -111,6 +112,16 @@ def allow_multiple_profiles() -> bool:
 
 def require_employee_link() -> bool:
 	return bool(cint(_value("require_employee_link")))
+
+
+def allow_delegate_compose() -> bool:
+	"""May a delegate build a new profile rather than pick an existing one?
+
+	Off by default. A delegate's allowlist is the whole of their authority, and
+	composing widens it - from "A or B" to "A and B" - so it is a System
+	Manager's decision, made once, not a side effect of installing.
+	"""
+	return bool(cint(_value("allow_delegate_compose")))
 
 
 def privileged_doctypes() -> list[str]:

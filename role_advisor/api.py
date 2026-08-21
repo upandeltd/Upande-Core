@@ -211,15 +211,24 @@ def preview_assignment(
 	}
 
 
-@frappe.whitelist()
-def assign_access(
-	user: str, role_profile: str, module_profile: str | None = None
+def write_assignment(
+	user: str,
+	role_profile: str,
+	module_profile: str | None = None,
+	trigger: str = audit.TRIGGER_MANUAL,
+	notes: str | None = None,
 ) -> dict:
-	"""Assign a role profile, and optionally a module profile, to `user`."""
-	admin = delegation.acting_admin()
-	delegation.assert_target(admin, user)
-	delegation.assert_grant(admin, role_profile, module_profile)
+	"""Put `role_profile` on `user` and log it. The only writer.
 
+	Ungated on purpose. `role_profiles` sits at permlevel 1, so nothing reaches
+	this except through a caller that has already established the right to make
+	the change - `assign_access` for a named profile, `compose.apply` for one it
+	just built. Keeping the write in one place is what makes "every change is in
+	the log" true rather than aspirational; adding a second writer would quietly
+	make it false.
+
+	Not whitelisted. Do not call it from the client.
+	"""
 	before = audit.snapshot(user)
 
 	doc = frappe.get_doc("User", user)
@@ -229,8 +238,6 @@ def assign_access(
 	if module_profile:
 		doc.module_profile = module_profile
 
-	# `role_profiles` is permlevel 1, so no permitted route to this write exists.
-	# Reached only after all three gates above have passed.
 	doc.save(ignore_permissions=True)
 
 	after = audit.snapshot(user)
@@ -239,7 +246,7 @@ def assign_access(
 		after["module_profile"],
 	)
 	outcome = audit.OUTCOME_NO_CHANGE if unchanged else audit.OUTCOME_APPLIED
-	log = audit.log_assignment(user, before, after, audit.TRIGGER_MANUAL, outcome=outcome)
+	log = audit.log_assignment(user, before, after, trigger, outcome=outcome, notes=notes)
 
 	return {
 		"user": user,
@@ -250,3 +257,19 @@ def assign_access(
 		"outcome": outcome,
 		"log": log,
 	}
+
+
+@frappe.whitelist()
+def assign_access(
+	user: str, role_profile: str, module_profile: str | None = None
+) -> dict:
+	"""Assign a role profile, and optionally a module profile, to `user`.
+
+	Replaces what they hold. For the additive alternative - keep everything they
+	have and add what they asked for - see `role_advisor.compose`.
+	"""
+	admin = delegation.acting_admin()
+	delegation.assert_target(admin, user)
+	delegation.assert_grant(admin, role_profile, module_profile)
+
+	return write_assignment(user, role_profile, module_profile)

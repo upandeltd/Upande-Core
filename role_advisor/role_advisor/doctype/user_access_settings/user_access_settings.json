@@ -4,51 +4,146 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "map_section", "seed_mode", "tie_break_rule", "min_peers_high_confidence",
-  "scope_column", "use_company", "use_branch", "use_department", "use_grade",
-  "module_section", "module_profile_strategy", "naming_pattern", "never_block_modules",
-  "delegation_section", "delegate_role", "allow_multiple_profiles",
-  "require_employee_link", "privileged_doctypes"
+  "map_section",
+  "seed_mode",
+  "tie_break_rule",
+  "min_peers_high_confidence",
+  "scope_column",
+  "use_company",
+  "use_branch",
+  "use_department",
+  "use_grade",
+  "module_section",
+  "module_profile_strategy",
+  "naming_pattern",
+  "never_block_modules",
+  "delegation_section",
+  "delegate_role",
+  "allow_multiple_profiles",
+  "require_employee_link",
+  "allow_delegate_compose",
+  "privileged_doctypes"
  ],
  "fields": [
-  {"fieldname": "map_section", "fieldtype": "Section Break", "label": "Map Resolution"},
-  {"fieldname": "seed_mode", "fieldtype": "Select", "label": "Seed Mode",
-   "options": "Seed from existing users\nAuthor from intent",
+  {
+   "fieldname": "map_section",
+   "fieldtype": "Section Break",
+   "label": "Map Resolution"
+  },
+  {
    "default": "Seed from existing users",
-   "description": "Existing assignments are observed state, never endorsed state. Choose 'Author from intent' where current data should not be trusted at all."},
-  {"fieldname": "tie_break_rule", "fieldtype": "Select", "label": "Tie Break Rule",
-   "options": "Tightest by permission count\nMajority peer vote\nAlways flag",
+   "description": "Existing assignments are observed state, never endorsed state. Choose 'Author from intent' where current data should not be trusted at all.",
+   "fieldname": "seed_mode",
+   "fieldtype": "Select",
+   "label": "Seed Mode",
+   "options": "Seed from existing users\nAuthor from intent"
+  },
+  {
    "default": "Tightest by permission count",
-   "description": "Majority vote drifts toward over-granting, because broad profiles spread faster."},
-  {"fieldname": "min_peers_high_confidence", "fieldtype": "Int",
-   "label": "Min Peers For High Confidence", "default": "5"},
-  {"fieldname": "scope_column", "fieldtype": "Column Break"},
-  {"fieldname": "use_company", "fieldtype": "Check", "label": "Scope By Company", "default": "1"},
-  {"fieldname": "use_branch", "fieldtype": "Check", "label": "Scope By Branch", "default": "1"},
-  {"fieldname": "use_department", "fieldtype": "Check", "label": "Scope By Department", "default": "0"},
-  {"fieldname": "use_grade", "fieldtype": "Check", "label": "Scope By Grade", "default": "0"},
-
-  {"fieldname": "module_section", "fieldtype": "Section Break", "label": "Module Profiles"},
-  {"fieldname": "module_profile_strategy", "fieldtype": "Select", "label": "Strategy",
-   "options": "Derive from Role Profile\nManual\nPer Company",
-   "default": "Derive from Role Profile"},
-  {"fieldname": "naming_pattern", "fieldtype": "Data", "label": "Naming Pattern",
-   "default": "{role_profile}"},
-  {"fieldname": "never_block_modules", "fieldtype": "Table MultiSelect",
-   "label": "Never Block Modules", "options": "User Access Never Block Module",
-   "description": "Empty by default: Kaitet blocks Core and Desk in production and the desk works."},
-
-  {"fieldname": "delegation_section", "fieldtype": "Section Break", "label": "Delegation"},
-  {"fieldname": "delegate_role", "fieldtype": "Link", "label": "Delegate Role",
-   "options": "Role", "default": "User Manager"},
-  {"fieldname": "allow_multiple_profiles", "fieldtype": "Check",
-   "label": "Allow Multiple Profiles Per User", "default": "0"},
-  {"fieldname": "require_employee_link", "fieldtype": "Check",
-   "label": "Require Employee Link", "default": "1",
-   "description": "Users with no Employee record have no company and are unreachable by any delegate."},
-  {"fieldname": "privileged_doctypes", "fieldtype": "Table MultiSelect",
-   "label": "Privileged Doctypes", "options": "User Access Privileged Doctype",
-   "description": "A profile granting write on any of these can never be delegated, even if allowlisted."}
+   "description": "Majority vote drifts toward over-granting, because broad profiles spread faster.",
+   "fieldname": "tie_break_rule",
+   "fieldtype": "Select",
+   "label": "Tie Break Rule",
+   "options": "Tightest by permission count\nMajority peer vote\nAlways flag"
+  },
+  {
+   "default": "5",
+   "fieldname": "min_peers_high_confidence",
+   "fieldtype": "Int",
+   "label": "Min Peers For High Confidence"
+  },
+  {
+   "fieldname": "scope_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "use_company",
+   "fieldtype": "Check",
+   "label": "Scope By Company"
+  },
+  {
+   "default": "1",
+   "fieldname": "use_branch",
+   "fieldtype": "Check",
+   "label": "Scope By Branch"
+  },
+  {
+   "default": "0",
+   "fieldname": "use_department",
+   "fieldtype": "Check",
+   "label": "Scope By Department"
+  },
+  {
+   "default": "0",
+   "fieldname": "use_grade",
+   "fieldtype": "Check",
+   "label": "Scope By Grade"
+  },
+  {
+   "fieldname": "module_section",
+   "fieldtype": "Section Break",
+   "label": "Module Profiles"
+  },
+  {
+   "default": "Derive from Role Profile",
+   "fieldname": "module_profile_strategy",
+   "fieldtype": "Select",
+   "label": "Strategy",
+   "options": "Derive from Role Profile\nManual\nPer Company"
+  },
+  {
+   "default": "{role_profile}",
+   "fieldname": "naming_pattern",
+   "fieldtype": "Data",
+   "label": "Naming Pattern"
+  },
+  {
+   "description": "Empty by default: Kaitet blocks Core and Desk in production and the desk works.",
+   "fieldname": "never_block_modules",
+   "fieldtype": "Table MultiSelect",
+   "label": "Never Block Modules",
+   "options": "User Access Never Block Module"
+  },
+  {
+   "fieldname": "delegation_section",
+   "fieldtype": "Section Break",
+   "label": "Delegation"
+  },
+  {
+   "default": "User Manager",
+   "fieldname": "delegate_role",
+   "fieldtype": "Link",
+   "label": "Delegate Role",
+   "options": "Role"
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_multiple_profiles",
+   "fieldtype": "Check",
+   "label": "Allow Multiple Profiles Per User"
+  },
+  {
+   "default": "1",
+   "description": "Users with no Employee record have no company and are unreachable by any delegate.",
+   "fieldname": "require_employee_link",
+   "fieldtype": "Check",
+   "label": "Require Employee Link"
+  },
+  {
+   "default": "0",
+   "description": "Let a delegated administrator build a new profile from their existing access plus what was asked for. Bounded to roles already inside their allowlist. Off by default: it widens what a delegate can hand out.",
+   "fieldname": "allow_delegate_compose",
+   "fieldtype": "Check",
+   "label": "Delegates May Compose Profiles"
+  },
+  {
+   "description": "A profile granting write on any of these can never be delegated, even if allowlisted.",
+   "fieldname": "privileged_doctypes",
+   "fieldtype": "Table MultiSelect",
+   "label": "Privileged Doctypes",
+   "options": "User Access Privileged Doctype"
+  }
  ],
  "issingle": 1,
  "links": [],
@@ -57,7 +152,16 @@
  "name": "User Access Settings",
  "owner": "Administrator",
  "permissions": [
-  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "print": 1, "email": 1, "share": 1}
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
  ],
  "sort_field": "modified",
  "sort_order": "DESC"

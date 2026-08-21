@@ -5,6 +5,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 
 from role_advisor import capability, delegation, requests
+from role_advisor.tests import fixtures
 from role_advisor.tests.fixtures import (
 	INNOCUOUS_DOCTYPE,
 	ensure_profile,
@@ -353,3 +354,42 @@ class TestRequests(IntegrationTestCase):
 		)
 
 		self.assertFalse(generated)
+
+	def test_the_covering_role_set_prefers_the_narrowest_role(self):
+		"""A tie must not be broken by whatever the query returned first.
+
+		A single missing permission is granted by dozens of roles, so ties are
+		the normal case, and `System Manager` covers everything. Before the
+		tie-break existed this function suggested it: 6,371 grants to satisfy an
+		ask that one 21-grant role covered. The difference between a useful
+		suggestion and a catastrophic one is entirely in the ordering.
+		"""
+		wide = fixtures.ensure_role("_RA Cover Wide Role")
+		narrow = fixtures.ensure_role("_RA Cover Narrow Role")
+		# Both cover the ask; the wide one also covers a great deal else.
+		fixtures.grant(narrow, fixtures.INNOCUOUS_DOCTYPE, "read")
+		fixtures.grant(wide, fixtures.INNOCUOUS_DOCTYPE, "read", "write", "create", "delete")
+		capability.clear_capability_index()
+
+		chosen = requests._roles_that_cover(
+			[{"document_type": fixtures.INNOCUOUS_DOCTYPE, "right": "read"}]
+		)
+
+		self.assertEqual(chosen, [narrow], f"picked {chosen} over the narrower role")
+
+	def test_the_covering_role_set_still_covers_everything_asked_for(self):
+		"""Narrowest-first must not stop it being a cover."""
+		role = fixtures.ensure_role("_RA Cover Both Role")
+		fixtures.grant(role, fixtures.INNOCUOUS_DOCTYPE, "read", "write")
+		capability.clear_capability_index()
+
+		wanted = [
+			{"document_type": fixtures.INNOCUOUS_DOCTYPE, "right": "read"},
+			{"document_type": fixtures.INNOCUOUS_DOCTYPE, "right": "write"},
+		]
+		chosen = requests._roles_that_cover(wanted)
+
+		covered = capability.capabilities_of_roles(chosen)
+		self.assertFalse(
+			requests._uncovered(covered, wanted), f"{chosen} does not cover the ask"
+		)

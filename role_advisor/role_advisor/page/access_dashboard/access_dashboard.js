@@ -83,12 +83,24 @@ const ICONS = {
 	desk: '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
 	out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
 	sliders: '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
+	headset: '<path d="M4 14v-2a8 8 0 0 1 16 0v2"/><path d="M4 14h2a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M20 14h-2a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1z"/><path d="M17 20v1a2 2 0 0 1-2 2h-3"/>',
+	server: '<rect x="2" y="3" width="20" height="7" rx="2"/><rect x="2" y="14" width="20" height="7" rx="2"/><line x1="6" y1="6.5" x2="6.01" y2="6.5"/><line x1="6" y1="17.5" x2="6.01" y2="17.5"/>',
+	cpu: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M10 2v3M14 2v3M10 19v3M14 19v3M2 10h3M2 14h3M19 10h3M19 14h3"/>',
+	fingerprint: '<path d="M12 2a10 10 0 0 0-10 10"/><path d="M12 6a6 6 0 0 0-6 6v4"/><path d="M12 10a2 2 0 0 0-2 2v8"/><path d="M14 22v-8a2 2 0 0 0-.6-1.4"/><path d="M18 20v-8a6 6 0 0 0-3-5.2"/><path d="M22 14v-2a10 10 0 0 0-5-8.7"/>',
+	pulse: '<path d="M22 12h-4l-3 8-4-16-3 8H2"/>',
+	list: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
+	bug: '<path d="M8 2l1.5 2.5M16 2l-1.5 2.5"/><rect x="7" y="6" width="10" height="12" rx="5"/><path d="M7 11H3M21 11h-4M7 15H4M20 15h-3M12 18v4"/>',
+	hourglass: '<path d="M6 2h12M6 22h12"/><path d="M6 2v4a6 6 0 0 0 6 6 6 6 0 0 0-6 6v4"/><path d="M18 2v4a6 6 0 0 1-6 6 6 6 0 0 1 6 6v4"/>',
+	cog: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H10a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V10a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
 	refresh: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
 };
 
 const esc = (value) => frappe.utils.escape_html(String(value == null ? "" : value));
 const num = (value) => Number(value || 0).toLocaleString();
 const cint = (value) => parseInt(value, 10) || 0;
+// A bare count reads as "the 1 actions asked for". Agree the noun.
+const plural = (n, one, many) => (Number(n) === 1 ? __(one) : __(many, [num(n)]));
+const actions = (n) => plural(n, "1 action", "{0} actions");
 
 class AccessDashboard {
 	constructor(page) {
@@ -1621,7 +1633,7 @@ class AccessDashboard {
 					}</h2>
 					<p class="ra-sub">${esc(verdict.notes || "")}</p>
 				</div>
-				<div class="ra-tag ${tone}">${__("{0} actions asked for", [asked])}</div>
+				<div class="ra-tag ${tone}">${__("{0} asked for", [actions(asked)])}</div>
 			</div>
 			${
 				verdict.profile
@@ -1680,9 +1692,10 @@ class AccessDashboard {
 			<div class="ra-verdictactions">
 				${
 					verdict.profile && verdict.grantable
-						? `<button class="ra-btn ra-dogrant">${__("Grant {0}", [esc(verdict.profile)])}</button>`
+						? `<button class="ra-btn ra-dogrant">${__("Replace with {0}", [esc(verdict.profile)])}</button>`
 						: ""
 				}
+				<button class="ra-btn ghost ra-doadd">${__("Add to what they have")}</button>
 				${
 					(verdict.grantable_alternatives || []).length > 1
 						? `<button class="ra-btn ghost ra-altgrant">${__("Other profiles that cover it · {0}", [
@@ -1699,6 +1712,7 @@ class AccessDashboard {
 		`);
 
 		$verdict.find(".ra-dogrant").on("click", () => this.do_grant(verdict.profile));
+		$verdict.find(".ra-doadd").on("click", () => this.do_add());
 		$verdict.find(".ra-altgrant").on("click", () => this.show_alternatives(verdict));
 		$verdict.find(".ra-asrequest").on("click", () => this.record_grant_as_request(user));
 	}
@@ -1758,11 +1772,11 @@ class AccessDashboard {
 							title: __("Granted"),
 							indicator: "green",
 							message: __(
-								"{0} now holds {1} and can do every one of the {2} actions asked for.",
+								"{0} now holds {1} and can do every one of the {2} asked for.",
 								[
 									frappe.utils.escape_html(user),
 									frappe.utils.escape_html(result.profiles.join(", ")),
-									this.grant.needs.length,
+									actions(this.grant.needs.length),
 								]
 							),
 						});
@@ -1791,6 +1805,157 @@ class AccessDashboard {
 				}
 			}
 		);
+	}
+
+	// Assigning a profile replaces what someone holds. That is right when the
+	// job changed and wrong when the job merely grew, so the additive path keeps
+	// their roles and adds the smallest set that covers the new ask.
+	async do_add() {
+		const user = this.user_field && this.user_field.get_value();
+		if (!user || !this.grant.needs.length) return;
+
+		const { $drawer } = this.loading_drawer(__("Add to their access"));
+
+		let plan;
+		try {
+			plan = await frappe.xcall("role_advisor.compose.preview", {
+				user,
+				requirements: this.grant.needs,
+			});
+		} catch (error) {
+			$drawer.find(".ra-drawer__body").html(`<div class="ra-empty">${esc(error.message)}</div>`);
+			return;
+		}
+
+		// When there is nothing to add, the answer is the reason and nothing
+		// else. Showing a proposed name, an empty role list and three unchanged
+		// counters reads as an offer, which is the opposite of what it is.
+		if (!plan.allowed) {
+			$drawer.find("h2").text(__("Nothing to add"));
+			$drawer.find("small").text(esc(user));
+			$drawer.find(".ra-drawer__body").html(`
+				<div class="ra-card ra-sect">
+					<p class="ra-sub" style="margin:0">${esc(plan.refusal)}</p>
+				</div>
+				${
+					plan.holds.length
+						? `<div class="ra-card ra-sect">
+								<b>${__("Holds today")}</b>
+								<div class="ra-badges" style="margin-top:10px">${plan.holds
+									.map((p) => `<span class="ra-badge">${esc(p)}</span>`)
+									.join("")}</div>
+							</div>`
+						: ""
+				}
+			`);
+			return;
+		}
+
+		$drawer.find("h2").text(plan.name);
+		$drawer
+			.find("small")
+			.text(
+				plan.reuses
+					? __("an existing profile already carries exactly this")
+					: __("a new profile would be created")
+			);
+
+		const badges = (items, cls) =>
+			items.length
+				? items.map((item) => `<span class="ra-badge ${cls}">${esc(item)}</span>`).join("")
+				: `<span class="ra-meta">${__("none")}</span>`;
+
+		$drawer.find(".ra-drawer__body").html(`
+			<div class="ra-card ra-sect">
+				<div class="ra-tile__stats" style="grid-template-columns:repeat(3,1fr)">
+					<div><small>${__("Roles")}</small><b style="font-size:14px">${num(
+						plan.roles_before
+					)} → ${num(plan.roles_after.length)}</b></div>
+					<div><small>${__("Documents reachable")}</small><b style="font-size:14px">${num(
+						plan.doctypes_before
+					)} → ${num(plan.doctypes_after)}</b></div>
+					<div><small>${__("Total grants")}</small><b style="font-size:14px">${num(
+						plan.grants_before
+					)} → ${num(plan.grants_after)}</b></div>
+				</div>
+				<div class="ra-tag good" style="margin-top:14px">${__(
+					"Nothing they hold today is taken away"
+				)}</div>
+			</div>
+			<div class="ra-card ra-sect">
+				<b>${__("Roles added")} · ${plan.added_roles.length}</b>
+				<div class="ra-badges" style="margin-top:10px">${badges(plan.added_roles, "gain")}</div>
+				<div class="ra-meta" style="margin-top:12px">${__(
+					"The smallest set that covers the ask — not another job's whole profile."
+				)}</div>
+			</div>
+			<div class="ra-card ra-sect">
+				<b>${__("Keeps")}</b>
+				<div class="ra-badges" style="margin-top:10px">${badges(
+					plan.holds,
+					""
+				)}</div>
+			</div>
+			${
+				plan.privileged
+					? `<div class="ra-card ra-sect" style="background:rgba(196,48,43,0.05)">
+							<b>${__("This would let them change permissions")}</b>
+							<p class="ra-sub" style="margin:8px 0 0">${esc(plan.privileged)}</p>
+						</div>`
+					: ""
+			}
+			<div class="ra-verdictactions">
+				<button class="ra-btn ra-addgo">${
+					plan.reuses ? __("Assign {0}", [esc(plan.reuses)]) : __("Create and assign")
+				}</button>
+			</div>
+		`);
+
+		$drawer.find(".ra-addgo").on("click", () => this.commit_add(plan, user));
+	}
+
+	async commit_add(plan, user) {
+		const $button = this.$main.find(".ra-addgo").add($(".ra-addgo")).prop("disabled", true);
+		$button.html(`<span class="ra-spinner"></span> ${__("Working…")}`);
+
+		try {
+			const result = await frappe.xcall("role_advisor.compose.apply", {
+				user,
+				requirements: this.grant.needs,
+				// A privileged result is refused for a delegate outright; a System
+				// Manager was shown it above and clicking is the confirmation.
+				confirm_privileged: plan.privileged ? 1 : 0,
+			});
+
+			$(".ra-scrim, .ra-drawer").remove();
+			frappe.msgprint({
+				title: result.covered ? __("Added") : __("Added, but not everything asked for"),
+				indicator: result.covered ? "green" : "orange",
+				message: result.covered
+					? __(
+							"{0} now holds {1} — everything they had, plus the {2} asked for.",
+							[
+								frappe.utils.escape_html(user),
+								frappe.utils.escape_html(result.composed),
+								actions(this.grant.needs.length),
+							]
+					  )
+					: __("Still not permitted: {0}", [
+							frappe.utils.escape_html((result.still_missing || []).join(", ")),
+					  ]),
+			});
+
+			this.cache = {};
+			this.summary = await frappe.xcall("role_advisor.dashboard.summary");
+			this.page.main
+				.find('.ra-nav a[data-view="audit"] .n')
+				.text(num(this.summary.assignments));
+			this.on_pick_user();
+			this.resolve_grant();
+		} catch (error) {
+			frappe.msgprint({ title: __("Refused"), message: esc(error.message), indicator: "red" });
+			$button.prop("disabled", false).text(__("Create and assign"));
+		}
 	}
 
 	async record_grant_as_request(user) {
