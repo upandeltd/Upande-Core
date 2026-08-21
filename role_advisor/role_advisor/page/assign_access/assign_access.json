@@ -7,12 +7,16 @@
  "modified": "2026-08-21 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Role Advisor",
- "name": "user-access",
+ "name": "assign-access",
  "owner": "Administrator",
- "page_name": "user-access",
+ "page_name": "assign-access",
  "roles": [
-  {"role": "System Manager"},
-  {"role": "User Manager"}
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "User Manager"
+  }
  ],
  "script": null,
  "standard": "Yes",

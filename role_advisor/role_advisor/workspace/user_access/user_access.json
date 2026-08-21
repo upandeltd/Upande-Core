@@ -166,7 +166,7 @@
    "onboard": 0
   }
  ],
- "modified": "2026-08-21 00:00:00.000000",
+ "modified": "2026-08-21 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Role Advisor",
  "name": "User Access",
@@ -180,7 +180,7 @@
  "shortcuts": [
   {
    "label": "User Access Console",
-   "link_to": "user-access",
+   "link_to": "assign-access",
    "type": "Page",
    "color": "Blue",
    "doc_view": ""

@@ -3,13 +3,17 @@
 
 /* Delegated user administration.
  *
+ * Route is `assign-access`, deliberately not `user-access`: the Workspace is
+ * labelled "User Access", which Frappe slugifies to `user-access`. A workspace
+ * beats a page on a route collision, so the page silently never opens.
+ *
  * Every field on User that matters sits at permlevel 1, and permlevel is
  * all-or-nothing, so a delegate gets no permlevel-1 write and comes through
  * role_advisor.api instead. This page is a thin client over those four methods:
  * it never writes a document directly, and it always previews before it acts.
  */
 
-frappe.pages["user-access"].on_page_load = function (wrapper) {
+frappe.pages["assign-access"].on_page_load = function (wrapper) {
 	const page = frappe.ui.make_app_page({
 		parent: wrapper,
 		title: __("User Access Console"),

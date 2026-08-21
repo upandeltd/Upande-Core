@@ -26,16 +26,29 @@ class TestConsolePage(IntegrationTestCase):
 		delegation.clear_cache()
 
 	def test_the_page_is_installed_and_reachable_by_a_delegate(self):
-		self.assertTrue(frappe.db.exists("Page", "user-access"))
+		self.assertTrue(frappe.db.exists("Page", "assign-access"))
 
 		roles = frappe.get_all(
 			"Has Role",
-			filters={"parent": "user-access", "parenttype": "Page"},
+			filters={"parent": "assign-access", "parenttype": "Page"},
 			pluck="role",
 		)
 
 		self.assertIn("User Manager", roles)
 		self.assertIn("System Manager", roles)
+
+	def test_the_page_route_does_not_collide_with_the_workspace(self):
+		"""The workspace is labelled "User Access", which Frappe slugifies to
+		`user-access`. A workspace beats a page on a route collision, so a page
+		named `user-access` silently never opens - which is exactly what
+		happened. The page must therefore live on its own route."""
+		workspace_route = frappe.scrub("User Access").replace("_", "-")
+
+		self.assertNotEqual("assign-access", workspace_route)
+		self.assertFalse(
+			frappe.db.exists("Page", workspace_route),
+			"a Page on the workspace's own route can never be reached",
+		)
 
 	def test_the_workspace_links_to_the_console_and_the_reports(self):
 		self.assertTrue(frappe.db.exists("Workspace", "User Access"))
@@ -43,7 +56,7 @@ class TestConsolePage(IntegrationTestCase):
 		shortcuts = frappe.get_all(
 			"Workspace Shortcut", filters={"parent": "User Access"}, pluck="link_to"
 		)
-		self.assertIn("user-access", shortcuts)
+		self.assertIn("assign-access", shortcuts)
 
 		links = frappe.get_all(
 			"Workspace Link", filters={"parent": "User Access"}, pluck="link_to"

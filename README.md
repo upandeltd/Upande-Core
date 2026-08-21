@@ -50,7 +50,7 @@ role names — a name list rots the moment someone creates `Site Admin Copy`.
 
 Everything lives under the **User Access** workspace in the desk.
 
-- **User Access Console** (`/app/user-access`) — the page a delegated
+- **User Access Console** (`/desk/assign-access`) — the page a delegated
   administrator works in. Pick a user from the scoped list, pick a profile from
   your allowlist, preview the exact roles gained and lost, confirm. It is a thin
   client over `role_advisor.api` and never writes a document directly.
@@ -59,6 +59,11 @@ Everything lives under the **User Access** workspace in the desk.
   `Access Assignment Log`.
 - Cards linking the five reports, the three configuration doctypes, and the core
   permission records this app reads but never seeds.
+
+The console lives on `assign-access`, deliberately not `user-access`: the
+workspace is labelled "User Access", which Frappe slugifies to `user-access`,
+and a workspace beats a page on a route collision — the page would silently
+never open.
 
 The console is visible to every `User Manager`, but the API refuses anyone
 without an enabled `Delegated User Admin` record — so a non-delegate sees a
