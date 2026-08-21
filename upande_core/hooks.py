@@ -87,6 +87,14 @@ fixtures = [
 	{
 		"doctype": "Monitored Doctype",
 	},
+	{
+		"doctype": "Workspace",
+		"filters": [["name", "=", "IT Operations"]],
+	},
+	{
+		"doctype": "Workspace Sidebar",
+		"filters": [["name", "=", "IT Operations"]],
+	},
 ]
 
 # Apps

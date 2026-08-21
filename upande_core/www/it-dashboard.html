@@ -647,6 +647,36 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .aph .nav-item,.aph .group-lbl,.aph .home-link,.aph .brand{flex:0 0 auto}
 .aph .nav-item{min-height:36px}
 .aph .aph-side .footer,.aph .aph-side .foot{flex:0 0 auto}
+
+/* ===== POPUP / MODAL / DROPDOWN CONSISTENCY ===== */
+/* Drill-down modal */
+.aph .aph-modal{background:rgba(10,10,10,.42)}
+.aph .aph-modal-box{border-radius:20px !important;box-shadow:var(--shadow-hover) !important;border:0 !important;overflow:hidden}
+.aph .aph-modal-hd{padding:20px 26px !important;border-bottom:1px solid var(--hairline) !important;gap:14px}
+.aph .aph-modal-hd .ttl,.aph .aph-modal-hd b,.aph .aph-modal-hd h3,.aph .aph-modal-ttl{font:600 17px var(--sans) !important;letter-spacing:-.02em;color:var(--ink)}
+.aph .aph-modal-body{padding:16px 26px 24px !important}
+.aph .aph-modal-x{width:32px;height:32px;border-radius:999px;display:grid;place-items:center;padding:0 !important;font-size:20px;transition:background .15s ease;flex:0 0 auto}
+.aph .aph-modal-x:hover{background:rgba(10,10,10,.07);color:var(--ink)}
+.aph .aph-modal-body table th{color:var(--ink-mute);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+.aph .aph-modal-body table td,.aph .aph-modal-body table th{padding-top:11px;padding-bottom:11px}
+.aph .aph-modal-body table td,.aph .aph-modal-body table th{border-color:var(--hairline)}
+/* Detail / variety modal */
+.aph .vmodal{background:rgba(10,10,10,.42)}
+.aph .vmodal-card{border-radius:20px !important;box-shadow:var(--shadow-hover) !important;border:0 !important}
+.aph .vmodal-head{padding:20px 24px !important;border-bottom:1px solid var(--hairline) !important}
+.aph .vmodal-body{padding:16px 24px 22px !important}
+/* Dropdown menus */
+.aph .dropdown-menu{border-radius:14px !important;box-shadow:var(--shadow-hover) !important;border:1px solid var(--hairline) !important;padding:6px !important}
+.aph .dropdown-item{padding:9px 12px !important;border-radius:9px !important}
+.aph .dropdown-item:hover{background:rgba(10,10,10,.05)}
+/* Date / user-search popovers */
+.aph .audp-pop,.aph .auss-pop{border:1px solid var(--hairline) !important;border-radius:14px !important;box-shadow:var(--shadow-hover) !important;padding:8px !important;overflow:hidden}
+.aph .auss-pop > *,.aph .audp-pop > *{border-radius:9px}
+
+/* doctype autocomplete popover */
+.aph .dt-res{border:1px solid var(--hairline) !important;border-radius:14px !important;box-shadow:var(--shadow-hover) !important;padding:6px !important;overflow:hidden}
+.aph .dt-res .it{padding:9px 12px !important;border-radius:9px !important}
+.aph .dt-res .it:hover{background:rgba(10,10,10,.05)}
 </style>
 
 <div class="aph">
@@ -665,23 +695,15 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
         <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/><circle cx="12" cy="12" r="4"/></svg>
         Helpdesk <span class="badge" id="b-helpdesk">·</span>
       </a>
-      <div class="group-lbl">Infrastructure</div>
-      <a class="nav-item" data-nav="assets" href="javascript:void(0)">
-        <svg class="ic" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-        Assets <span class="badge" id="b-assets">·</span>
-      </a>
-      <div class="group-lbl">Access</div>
+      <div class="group-lbl">Access & Identity</div>
       <a class="nav-item" data-nav="users" href="javascript:void(0)">
         <svg class="ic" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Users &amp; Access <span class="badge" id="b-users">·</span>
       </a>
+      <a class="nav-item" href="it-workforce"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Workforce</a>
       <a class="nav-item" data-nav="roles" id="nav-roles" href="javascript:void(0)" style="display:none">
         <svg class="ic" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 11 2 2 4-4"/></svg>
         Role Manager
-      </a>
-      <a class="nav-item" data-nav="workspaces" id="nav-workspaces" href="javascript:void(0)" style="display:none">
-        <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-        Workspace Access
       </a>
       <a class="nav-item" data-nav="profiles" id="nav-profiles" href="javascript:void(0)" style="display:none">
         <svg class="ic" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -691,23 +713,18 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
         <svg class="ic" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9"/><path d="M16 4l4 4-4 4"/></svg>
         Role Capabilities
       </a>
+      <a class="nav-item" data-nav="workspaces" id="nav-workspaces" href="javascript:void(0)" style="display:none">
+        <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Workspace Access
+      </a>
       <a class="nav-item" data-nav="doctypes" id="nav-doctypes" href="javascript:void(0)" style="display:none">
         <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/></svg>
         Doctype Access
       </a>
-      <a class="nav-item" data-nav="errors" id="nav-errors" href="javascript:void(0)" style="display:none">
-        <svg class="ic" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        Error Messages
-      </a>
-      <a class="nav-item" data-nav="audit" href="javascript:void(0)">
-        <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        Audit Trail <span class="badge" id="b-audit">·</span>
-      </a>
-      <a class="nav-item" href="it-workforce"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Workforce</a>
-      <div class="group-lbl">System</div>
-      <a class="nav-item" data-nav="system" href="javascript:void(0)">
-        <svg class="ic" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-        System Health <span class="badge" id="b-system">·</span>
+      <div class="group-lbl">Infrastructure</div>
+      <a class="nav-item" data-nav="assets" href="javascript:void(0)">
+        <svg class="ic" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        Assets <span class="badge" id="b-assets">·</span>
       </a>
       <a class="nav-item" data-nav="devices" href="javascript:void(0)">
         <svg class="ic" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
@@ -717,16 +734,28 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
         <svg class="ic" viewBox="0 0 24 24"><path d="M12 10a2 2 0 0 0-2 2c0 1.5-.5 3.5-1 4.5"/><path d="M8.5 8.5A5 5 0 0 1 17 12c0 1.5-.2 3-.6 4.4"/><path d="M12 6.5A5.5 5.5 0 0 0 6.5 12c0 1-.1 2-.4 3"/><path d="M5.5 9A8 8 0 0 1 20 12c0 1.7-.3 3.5-.8 5"/><path d="M12 12v.5c0 2.5-.5 4.7-1.4 6.5"/></svg>
         Biometric Status <span class="badge" id="b-biometric">·</span>
       </a>
+      <div class="group-lbl">Monitoring</div>
+      <a class="nav-item" data-nav="system" href="javascript:void(0)">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        System Health <span class="badge" id="b-system">·</span>
+      </a>
+      <a class="nav-item" href="it-operations"><svg class="ic" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>System Activity</a>
+      <a class="nav-item" data-nav="audit" href="javascript:void(0)">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Audit Trail <span class="badge" id="b-audit">·</span>
+      </a>
+      <a class="nav-item" data-nav="errors" id="nav-errors" href="javascript:void(0)" style="display:none">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Error Messages
+      </a>
+      <div class="group-lbl">Attendance</div>
       <a class="nav-item" data-nav="shifts" href="javascript:void(0)">
         <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
         Shifts <span class="badge" id="b-shifts">·</span>
       </a>
-    
-<div class="group-lbl">Operations</div>
-      <a class="nav-item" href="it-operations"><svg class="ic" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>System Activity</a>
+      <div class="group-lbl">Configuration</div>
       <a class="nav-item" href="it-operations-admin"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Monitor Config</a>
-      
-</div>
+    </div>
     <div class="footer">
       <div class="av" id="foot-av">—</div>
       <div class="who"><div class="nm" id="foot-nm">Loading…</div><div class="em" id="foot-em">kaitet-group</div></div>
