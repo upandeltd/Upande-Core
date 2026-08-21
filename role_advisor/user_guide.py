@@ -470,8 +470,9 @@ bullets([
      "not exist."),
     ("Temporary staff have more access than permanent", "Temporary -Mechanic allows considerably "
      "more than Mechanic."),
-    ("Two test logins have unrestricted access to live", "eric@test.com and test@upande.com both "
-     "hold System Manager on the production system, alongside a service account."),
+    ("Two test logins have unrestricted access to live", "Two accounts that look like test "
+     "logins hold System Manager on the production system, alongside a service account. "
+     "The System Manager Audit report names them."),
     ("66 disabled accounts still hold access levels", "They cannot log in today, but every "
      "permission is intact. Re-enable one and it silently gets everything back."),
     ("Naming is inconsistent", "40 of 87 access levels have a naming problem — mixed "

@@ -60,3 +60,10 @@ docs/*.csv
 
 # The guide is a generated document; regenerate with role_advisor.user_guide
 docs/*.pdf
+
+# Generated workbooks carry staff names, addresses, designations and companies.
+# They are rebuilt from the live site by role_advisor.workbook / module_workbook
+# whenever they are needed, so they have no business in git - a repository is
+# the one place you cannot take data back out of.
+docs/*.xlsx
+*.xlsx
