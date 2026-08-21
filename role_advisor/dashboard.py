@@ -118,6 +118,12 @@ def summary() -> dict:
 		),
 		"scoped": scope is not None,
 		"scope_companies": delegation.scope_companies(admin) if admin else [],
+		# The client needs this to decide which controls to draw. On the desk
+		# `frappe.user.has_role` answered it; on a portal page `frappe.boot.user`
+		# does not exist, so the answer travels with the boot call that is
+		# already being made. It gates presentation only - every write is
+		# re-checked server-side regardless of what the client believes.
+		"is_system_manager": "System Manager" in frappe.get_roles(),
 	}
 
 

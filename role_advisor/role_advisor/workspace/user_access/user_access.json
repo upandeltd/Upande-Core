@@ -1,7 +1,7 @@
 {
  "app": "role_advisor",
  "charts": [],
- "content": "[{\"id\": \"ra_head\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\">Role Advisor</span>\", \"col\": 12}}, {\"id\": \"ra_para\", \"type\": \"paragraph\", \"data\": {\"text\": \"Users, role profiles, anomalies, requests and the audit trail all live inside the app. Open it below, or go straight to <b>/role-advisor</b>.\", \"col\": 12}}, {\"id\": \"ra_open\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Role Advisor\", \"col\": 4}}]",
+ "content": "[{\"id\": \"ra_head\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\">Moved</span>\", \"col\": 12}}, {\"id\": \"ra_p\", \"type\": \"paragraph\", \"data\": {\"text\": \"Access management is part of <b>IT Operations</b> now, at <b>/it-dashboard</b>. This workspace is kept only because the doctypes and reports behind it belong to this app.\", \"col\": 12}}, {\"id\": \"ra_sc\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"IT Operations\", \"col\": 4}}]",
  "creation": "2026-08-21 00:00:00",
  "custom_blocks": [],
  "docstatus": 0,
@@ -10,7 +10,7 @@
  "hide_custom": 0,
  "icon": "users",
  "idx": 1,
- "is_hidden": 0,
+ "is_hidden": 1,
  "label": "User Access",
  "links": [],
  "modified": "2026-08-21 16:00:00.000000",
@@ -35,9 +35,9 @@
   {
    "color": "Grey",
    "doc_view": "",
-   "label": "Role Advisor",
-   "link_to": "access-dashboard",
-   "type": "Page"
+   "label": "IT Operations",
+   "type": "URL",
+   "url": "/it-dashboard"
   }
  ],
  "title": "User Access",
