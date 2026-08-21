@@ -51,16 +51,46 @@ role names — a name list rots the moment someone creates `Site Admin Copy`.
 `Designation Gap`, `Module Exposure`, `Role Drift`, `System Manager Audit`,
 `Role Profile Overgrant`. All read-only.
 
-### Workbook
+### Workbooks
+
+Two, for two audiences. Both read-only; both import into Google Sheets via
+File → Import.
+
+**Audit workbook** — for whoever owns access overall.
 
 ```bash
 bench --site <site> execute role_advisor.workbook.build
 ```
 
-Writes `docs/user-access-workbook-<date>.xlsx` — four sheets covering users,
-role profiles (with duplicate and subset analysis plus proposed canonical
-names), roles, and the full profile-by-doctype permission matrix. Columns marked
-`(EDITABLE)` are inert, parked for a future importer.
+`docs/user-access-workbook-<date>.xlsx`. Four sheets: users, role profiles (with
+duplicate and subset analysis plus proposed canonical names from
+`taxonomy.py`), roles, and the full profile-by-doctype permission matrix.
+
+**Module-owner workbook** — for the person who owns a module.
+
+```bash
+bench --site <site> execute role_advisor.module_workbook.build
+```
+
+`docs/module-owner-workbook-<date>.xlsx`. An `Overview` tab, a `Profile Index`
+tab, then one tab per module. Inside each module tab, one block per role profile
+touching that module, and within each block two grouped areas — the **ROLES**
+composing the profile, and the **PERMISSIONS** they grant on that module's
+doctypes — with `+ ADD` rows for the owner to extend.
+
+Columns marked `(EDITABLE)` are inert, parked for a future importer.
+
+> **A role profile spans a median of 35 modules**, so the same profile appears on
+> many module tabs. The `also_on_sheets` column on every PROFILE row names the
+> others, so two owners editing the same profile can see they are about to
+> disagree. Reconciling that is a human step before anything is applied — the
+> workbook surfaces the conflict rather than resolving it.
+
+> **Applying a module sheet is not yet implemented, and is not trivial.** If any
+> `Custom DocPerm` row exists for a doctype, Frappe discards that doctype's
+> standard `DocPerm`s for *every* role. Any importer must therefore write the
+> complete permission set for each doctype it touches, not just the module
+> owner's additions, or roles nobody considered will silently lose access.
 
 ### v16 notes
 
