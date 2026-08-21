@@ -25,11 +25,24 @@ COLUMNS = [
 DORMANT_MONTHS = 6
 
 
-def _looks_like_service_account(user: str) -> bool:
-	local = user.split("@")[0].lower()
-	domain = user.split("@")[-1].lower()
+# Local-parts and domains that mark a login as not belonging to a real person.
+NON_PERSON_MARKERS = ("api", "service", "test", "demo", "temp", "dummy")
 
-	return "api" in local or "service" in local or domain.startswith("api.")
+
+def _looks_like_non_person(user: str) -> bool:
+	"""Flag logins that are unlikely to belong to an accountable human.
+
+	Verified against live production, where `user@api.com`, `eric@test.com` and
+	`test@upande.com` all hold System Manager. A service or test account cannot
+	be held responsible for what System Manager can do, so each one is a finding
+	regardless of how long ago it was created.
+	"""
+	local, _, domain = user.lower().partition("@")
+
+	return any(
+		marker in local or domain.split(".")[0] == marker
+		for marker in NON_PERSON_MARKERS
+	)
 
 
 def audit_rows() -> list[dict]:
@@ -61,8 +74,8 @@ def audit_rows() -> list[dict]:
 		# what System Manager can do.
 		if not row["has_employee"]:
 			flags.append("no Employee record")
-		if _looks_like_service_account(row["user"]):
-			flags.append("looks like a service account")
+		if _looks_like_non_person(row["user"]):
+			flags.append("service or test account")
 		if not row["last_active"]:
 			flags.append("never active")
 		elif row["last_active"] < dormant_before:
