@@ -249,3 +249,14 @@
 .ra-verdict.gap{background:rgba(196,48,43,0.09)}
 .ra-verdict h4{margin:0 0 5px;font:600 17px var(--sans);color:var(--ink);letter-spacing:-.3px}
 .ra-verdict p{margin:0;font-size:13px;color:var(--ink-3)}
+
+/* Request queue */
+.ra-req{background:var(--surface-2);border-radius:18px;padding:20px 22px;box-shadow:var(--shadow-card);margin-bottom:12px;border-left:4px solid rgba(10,10,10,0.08)}
+.ra-req.ready{border-left-color:var(--sev-low)}
+.ra-req.gap{border-left-color:var(--sev-high)}
+.ra-req.open{border-left-color:var(--sev-mod)}
+.ra-req__head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px;flex-wrap:wrap}
+.ra-req__who b{font:600 15px var(--sans);color:var(--ink)}
+.ra-req__who small{display:block;font:500 12px var(--sans);color:var(--ink-mute);margin-top:2px}
+.ra-req__acts{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.ra-req__why{font-size:12.5px;color:var(--ink-4);font-style:italic;margin-top:10px}

@@ -403,7 +403,14 @@ def my_requests(limit: int = 20) -> list[dict]:
 def queue(limit: int = 50) -> list[dict]:
 	"""Open requests an administrator should look at."""
 	frappe.only_for(["System Manager", settings.delegate_role()])
-	admin = delegation.current_admin()
+	# A System Manager sees every request even when they also hold a delegate
+	# record. The record bounds what a delegate may do; it never narrows an
+	# administrator's view - otherwise requests silently vanish from the queue.
+	admin = (
+		None
+		if "System Manager" in frappe.get_roles()
+		else delegation.current_admin()
+	)
 
 	rows = frappe.get_all(
 		"Access Request",
@@ -512,3 +519,53 @@ def check_for_me(requirements) -> dict:
 def request_for_me(requirements, reason: str = "") -> dict:
 	"""Raise a request for the caller. No user argument, by design."""
 	return submit_request(frappe.session.user, requirements, reason)
+
+
+@frappe.whitelist()
+def refuse(request: str, note: str = "") -> dict:
+	"""Turn a request down, with a reason the requester can read."""
+	frappe.only_for(["System Manager", settings.delegate_role()])
+
+	doc = frappe.get_doc("Access Request", request)
+	if doc.status == "Fulfilled":
+		frappe.throw(_("Already fulfilled — it cannot be refused now."))
+
+	if "System Manager" not in frappe.get_roles():
+		admin = delegation.current_admin()
+		if admin:
+			delegation.assert_can_manage(admin, doc.for_user)
+
+	doc.status = "Refused"
+	doc.resolution_notes = (note or "").strip() or _("Refused without a note.")
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+
+	return {"request": doc.name, "status": doc.status}
+
+
+@frappe.whitelist()
+def recheck(request: str) -> dict:
+	"""Resolve a request again against permissions as they are now.
+
+	A request answered last week may answer differently today - profiles get
+	edited. Re-checking before granting means the recommendation shown is the
+	one that will actually be applied.
+	"""
+	frappe.only_for(["System Manager", settings.delegate_role()])
+
+	doc = frappe.get_doc("Access Request", request)
+	requirements = [
+		{"doctype": line.document_type, "right": line.right} for line in doc.transactions
+	]
+	verdict = resolve(doc.for_user, requirements)
+
+	doc.resolution = verdict["resolution"]
+	doc.recommended_profile = verdict.get("profile")
+	doc.over_grant = "; ".join(verdict.get("over_grant", [])[:12])
+	doc.resolution_notes = verdict.get("notes")
+	if doc.status != "Fulfilled":
+		doc.status = "Resolved" if verdict.get("profile") else "Open"
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+
+	return {"request": doc.name, **verdict}

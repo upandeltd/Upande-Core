@@ -113,6 +113,9 @@ def summary() -> dict:
 		"map_active": frappe.db.count("Designation Access Map", {"is_active": 1}),
 		"delegates": frappe.db.count("Delegated User Admin", {"enabled": 1}),
 		"assignments": frappe.db.count("Access Assignment Log"),
+		"open_requests": frappe.db.count(
+			"Access Request", {"status": ("in", ["Open", "Resolved"])}
+		),
 		"scoped": scope is not None,
 		"scope_companies": delegation.scope_companies(admin) if admin else [],
 	}

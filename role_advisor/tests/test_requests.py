@@ -213,6 +213,107 @@ class TestRequests(IntegrationTestCase):
 				OUT_OF_SCOPE, [{"doctype": INNOCUOUS_DOCTYPE, "right": "read"}]
 			)
 
+	# ------------------------------------------------------------------ queue
+
+	def test_the_queue_shows_open_and_resolved_requests(self):
+		result = requests.submit_request(
+			IN_SCOPE, [{"doctype": INNOCUOUS_DOCTYPE, "right": "write"}]
+		)
+
+		names = [row["name"] for row in requests.queue()]
+
+		self.assertIn(result["request"], names)
+
+	def test_a_system_manager_queue_is_not_narrowed_by_a_delegate_record(self):
+		"""The record bounds a delegate; it must never hide requests from an
+		administrator. This has been the same mistake three times: the guard,
+		the request doctype, and the queue."""
+		requests.submit_request(
+			OUT_OF_SCOPE, [{"doctype": INNOCUOUS_DOCTYPE, "right": "write"}]
+		)
+
+		# Administrator holds a Delegated User Admin record in this fixture's
+		# world; the out-of-scope request must still be visible.
+		targets = [row["for_user"] for row in requests.queue()]
+
+		self.assertIn(OUT_OF_SCOPE, targets)
+
+	def test_a_delegate_queue_is_scoped(self):
+		requests.submit_request(
+			OUT_OF_SCOPE, [{"doctype": INNOCUOUS_DOCTYPE, "right": "write"}]
+		)
+		frappe.set_user(ADMIN)
+		delegation.clear_cache()
+
+		targets = [row["for_user"] for row in requests.queue()]
+
+		self.assertNotIn(OUT_OF_SCOPE, targets)
+
+	def test_the_queue_carries_what_was_asked_for(self):
+		result = requests.submit_request(
+			IN_SCOPE, [{"doctype": INNOCUOUS_DOCTYPE, "right": "write"}]
+		)
+		row = next(r for r in requests.queue() if r["name"] == result["request"])
+
+		self.assertEqual(
+			[(line["document_type"], line["right"]) for line in row["transactions"]],
+			[(INNOCUOUS_DOCTYPE, "write")],
+		)
+
+	def test_refusing_records_a_reason(self):
+		result = requests.submit_request(
+			IN_SCOPE, [{"doctype": INNOCUOUS_DOCTYPE, "right": "write"}]
+		)
+
+		requests.refuse(result["request"], "not part of the job")
+
+		doc = frappe.get_doc("Access Request", result["request"])
+		self.assertEqual(doc.status, "Refused")
+		self.assertIn("not part of the job", doc.resolution_notes)
+
+	def test_a_refusal_with_no_note_still_says_so(self):
+		result = requests.submit_request(
+			IN_SCOPE, [{"doctype": INNOCUOUS_DOCTYPE, "right": "write"}]
+		)
+
+		requests.refuse(result["request"], "")
+
+		self.assertIn(
+			"without a note",
+			frappe.db.get_value("Access Request", result["request"], "resolution_notes"),
+		)
+
+	def test_a_fulfilled_request_cannot_then_be_refused(self):
+		result = requests.submit_request(
+			IN_SCOPE, [{"doctype": INNOCUOUS_DOCTYPE, "right": "write"}]
+		)
+		frappe.db.set_value("Access Request", result["request"], "status", "Fulfilled")
+
+		with self.assertRaises(frappe.ValidationError):
+			requests.refuse(result["request"], "too late")
+
+	def test_rechecking_answers_against_permissions_as_they_are_now(self):
+		"""A request answered last week may answer differently today."""
+		result = requests.submit_request(
+			IN_SCOPE, [{"doctype": INNOCUOUS_DOCTYPE, "right": "write"}]
+		)
+		frappe.db.set_value(
+			"Access Request", result["request"], "recommended_profile", None
+		)
+
+		again = requests.recheck(result["request"])
+
+		self.assertEqual(
+			frappe.db.get_value("Access Request", result["request"], "recommended_profile"),
+			again.get("profile"),
+		)
+
+	def test_the_queue_is_administrators_only(self):
+		frappe.set_user(IN_SCOPE)
+
+		with self.assertRaises(frappe.PermissionError):
+			requests.queue()
+
 	# --------------------------------------------------------------- bundles
 
 	def test_a_bundle_of_one_is_refused(self):

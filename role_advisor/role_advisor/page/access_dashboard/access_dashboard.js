@@ -27,6 +27,7 @@ const VIEWS = [
 	{ id: "profiles", label: "Role Profiles", icon: "layers", count: "profiles" },
 	{ id: "modules", label: "Modules", icon: "box", count: "modules" },
 	{ id: "request", label: "Request Access", icon: "search" },
+	{ id: "queue", label: "Incoming Requests", icon: "inbox", count: "open_requests" },
 	{ id: "assign", label: "Assign Access", icon: "check" },
 	{ id: "map", label: "Designation Map", icon: "map", count: "map_rows" },
 	{ id: "sweep", label: "Bulk Sweep", icon: "zap" },
@@ -45,6 +46,7 @@ const ICONS = {
 	map: '<polygon points="1 6 8 3 16 6 23 3 23 18 16 21 8 18 1 21 1 6"/><line x1="8" y1="3" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="21"/>',
 	zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
 	file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+	inbox: '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
 	search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
 	shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
 	refresh: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
@@ -511,8 +513,11 @@ class AccessDashboard {
 	}
 
 	async fetch(key, method, args) {
+		// A bare name is a dashboard method; anything containing a dot is a full
+		// path, so views can cache calls to other modules too.
 		if (!this.cache[key]) {
-			this.cache[key] = await frappe.xcall(`role_advisor.dashboard.${method}`, args);
+			const path = method.includes(".") ? method : `role_advisor.dashboard.${method}`;
+			this.cache[key] = await frappe.xcall(path, args);
 		}
 		return this.cache[key];
 	}
@@ -1163,6 +1168,206 @@ class AccessDashboard {
 			frappe.msgprint({ title: __("Refused"), message: esc(error.message), indicator: "red" });
 			$button.prop("disabled", false).text(__("Assign {0}", [this.assign.profile]));
 		}
+	}
+
+	// ---------------------------------------------------------------- queue
+
+	async view_queue() {
+		this.$main.html(`
+			${this.head(
+				__("Incoming Requests"),
+				__("What people have asked to be able to do, and what it would take"),
+				`<div class="ra-pillgroup ra-qfilter">
+					<button class="on" data-f="all">${__("All open")}</button>
+					<button data-f="ready">${__("Ready to grant")}</button>
+					<button data-f="gap">${__("Needs building")}</button>
+				</div>`
+			)}
+			<div class="ra-queuebody"><div class="ra-empty"><span class="ra-spinner"></span></div></div>
+		`);
+
+		const rows = await this.fetch("queue", "role_advisor.requests.queue", { limit: 100 });
+		this.$main.find(".ra-qfilter button").on("click", (event) => {
+			this.$main.find(".ra-qfilter button").removeClass("on");
+			$(event.currentTarget).addClass("on");
+			draw();
+		});
+
+		const draw = () => {
+			const filter = this.$main.find(".ra-qfilter button.on").data("f");
+			const shown = rows.filter((row) => {
+				if (filter === "ready") return Boolean(row.recommended_profile);
+				if (filter === "gap") return !row.recommended_profile;
+				return true;
+			});
+
+			if (!shown.length) {
+				this.$main.find(".ra-queuebody").html(
+					`<div class="ra-card"><div class="ra-empty">${
+						rows.length
+							? __("Nothing in this group.")
+							: __(
+									"No open requests. People raise them from My Access, or you can raise one under Request Access."
+							  )
+					}</div></div>`
+				);
+				return;
+			}
+
+			this.$main.find(".ra-queuebody").html(
+				shown
+					.map((row) => {
+						const tone = row.recommended_profile
+							? "ready"
+							: row.resolution && row.resolution.startsWith("Gap")
+							? "gap"
+							: "open";
+						return `
+					<div class="ra-req ${tone}" data-req="${esc(row.name)}">
+						<div class="ra-req__head">
+							<div class="ra-req__who">
+								<b class="ra-openuser" style="cursor:pointer">${esc(row.for_user)}</b>
+								<small>${esc(row.name)} · ${esc(row.company || __("no company"))} · ${__(
+							"raised by"
+						)} ${esc(row.raised_by)} · ${frappe.datetime.comment_when(row.creation)}</small>
+							</div>
+							<div class="ra-req__acts">
+								<span class="ra-chip ${
+									row.recommended_profile ? "" : "bad"
+								}">${esc(row.resolution || row.status)}</span>
+								<button class="ra-btn ghost sm ra-recheck">${__("Re-check")}</button>
+								${
+									row.recommended_profile
+										? `<button class="ra-btn sm ra-grant">${__("Grant {0}", [
+												esc(row.recommended_profile),
+										  ])}</button>`
+										: ""
+								}
+								<button class="ra-btn ghost sm ra-refuse">${__("Refuse")}</button>
+							</div>
+						</div>
+						<div class="ra-badges">${(row.transactions || [])
+							.map(
+								(line) =>
+									`<span class="ra-badge">${esc(line.document_type)} · ${esc(
+										line.right
+									)}</span>`
+							)
+							.join("")}</div>
+						${(() => {
+							// The full over-grant list swamps the card. Show the
+							// first few and the count; the rest is in the title.
+							if (!row.over_grant) return "";
+							const parts = row.over_grant.split("; ").filter(Boolean);
+							const head = parts.slice(0, 3).join("; ");
+							const rest = parts.length - 3;
+							return `<div class="ra-meta ra-ellipsis" style="margin-top:10px;max-width:100%"
+								title="${esc(row.over_grant)}">${__("Would also grant:")} ${esc(head)}${
+								rest > 0 ? ` ${__("and {0} more areas", [rest])}` : ""
+							}</div>`;
+						})()}
+						${row.reason ? `<div class="ra-req__why">“${esc(row.reason)}”</div>` : ""}
+					</div>`;
+					})
+					.join("")
+			);
+
+			const $body = this.$main.find(".ra-queuebody");
+
+			$body.find(".ra-openuser").on("click", (event) =>
+				this.open_user($(event.currentTarget).closest(".ra-req").find(".ra-openuser").text())
+			);
+
+			$body.find(".ra-recheck").on("click", async (event) => {
+				const name = $(event.currentTarget).closest(".ra-req").data("req");
+				const $button = $(event.currentTarget).prop("disabled", true);
+				try {
+					const v = await frappe.xcall("role_advisor.requests.recheck", { request: name });
+					frappe.show_alert({
+						message: __("{0} · now {1}", [name, v.resolution]),
+						indicator: v.profile ? "green" : "orange",
+					});
+					delete this.cache.queue;
+					this.view_queue();
+				} catch (error) {
+					frappe.msgprint({ title: __("Failed"), message: esc(error.message), indicator: "red" });
+					$button.prop("disabled", false);
+				}
+			});
+
+			$body.find(".ra-grant").on("click", (event) => {
+				const $req = $(event.currentTarget).closest(".ra-req");
+				const name = $req.data("req");
+				const row = rows.find((candidate) => candidate.name === name);
+
+				frappe.confirm(
+					__(
+						"Grant {0} to {1}? Their current profile is replaced, and the change is logged.",
+						[`<b>${esc(row.recommended_profile)}</b>`, `<b>${esc(row.for_user)}</b>`]
+					),
+					async () => {
+						try {
+							const result = await frappe.xcall("role_advisor.requests.fulfil", {
+								request: name,
+							});
+							frappe.show_alert({
+								message: __("{0} now holds {1}", [
+									row.for_user,
+									result.profiles.join(", "),
+								]),
+								indicator: "green",
+							});
+							this.cache = {};
+							this.load();
+						} catch (error) {
+							frappe.msgprint({
+								title: __("Refused"),
+								message: esc(error.message),
+								indicator: "red",
+							});
+						}
+					}
+				);
+			});
+
+			$body.find(".ra-refuse").on("click", (event) => {
+				const name = $(event.currentTarget).closest(".ra-req").data("req");
+				const dialog = new frappe.ui.Dialog({
+					title: __("Refuse {0}", [name]),
+					fields: [
+						{
+							fieldtype: "Small Text",
+							fieldname: "note",
+							label: __("Why"),
+							reqd: 1,
+							description: __("The requester can read this, so say something useful."),
+						},
+					],
+					primary_action_label: __("Refuse"),
+					primary_action: async (values) => {
+						try {
+							await frappe.xcall("role_advisor.requests.refuse", {
+								request: name,
+								note: values.note,
+							});
+							dialog.hide();
+							frappe.show_alert({ message: __("{0} refused", [name]), indicator: "orange" });
+							this.cache = {};
+							this.load();
+						} catch (error) {
+							frappe.msgprint({
+								title: __("Failed"),
+								message: esc(error.message),
+								indicator: "red",
+							});
+						}
+					},
+				});
+				dialog.show();
+			});
+		};
+
+		draw();
 	}
 
 	// -------------------------------------------------------------- request
