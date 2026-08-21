@@ -120,6 +120,18 @@ restores every grant silently — so leaving them out understates real exposure.
 `workbook.build` and `module_workbook.build` still produce the two narrower
 files if you want to hand someone only their part.
 
+### User guide
+
+A plain-language guide for the people administering access — concepts, how to
+assign, what is refused and why, and what the review has already found.
+
+```bash
+python3 role_advisor/user_guide.py
+```
+
+`docs/Role Advisor - User Guide.docx`, six pages. Regenerate it after any change
+to the workflow it describes.
+
 ### Exporting from a remote site
 
 The site holding the real data may not be the site this app runs on — Kaitet's

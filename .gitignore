@@ -57,3 +57,6 @@ jspm_packages/
 # Never commit exported user data - it is PII.
 docs/*.csv
 *.csv
+
+# The guide is a generated document; regenerate with role_advisor.user_guide
+docs/*.pdf
