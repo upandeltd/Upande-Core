@@ -26,6 +26,7 @@ const VIEWS = [
 	{ id: "users", label: "Users", icon: "users", count: "enabled" },
 	{ id: "profiles", label: "Role Profiles", icon: "layers", count: "profiles" },
 	{ id: "modules", label: "Modules", icon: "box", count: "modules" },
+	{ id: "request", label: "Request Access", icon: "search" },
 	{ id: "assign", label: "Assign Access", icon: "check" },
 	{ id: "map", label: "Designation Map", icon: "map", count: "map_rows" },
 	{ id: "sweep", label: "Bulk Sweep", icon: "zap" },
@@ -44,6 +45,7 @@ const ICONS = {
 	map: '<polygon points="1 6 8 3 16 6 23 3 23 18 16 21 8 18 1 21 1 6"/><line x1="8" y1="3" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="21"/>',
 	zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
 	file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+	search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
 	shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
 	refresh: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
 };
@@ -1147,6 +1149,382 @@ class AccessDashboard {
 		} catch (error) {
 			frappe.msgprint({ title: __("Refused"), message: esc(error.message), indicator: "red" });
 			$button.prop("disabled", false).text(__("Assign {0}", [this.assign.profile]));
+		}
+	}
+
+	// -------------------------------------------------------------- request
+
+	async view_request() {
+		this.basket = this.basket || [];
+
+		this.$main.html(`
+			${this.head(
+				__("Request Access"),
+				__(
+					"Name the documents someone needs to work with. The profile is worked out for you — nobody has to know the permission model."
+				)
+			)}
+			<div class="ra-row2eq">
+				<div class="ra-card">
+					<div class="ra-card__head"><h3>${__("1 · Who needs it")}</h3><div class="ra-meta ra-whonote"></div></div>
+					<div class="ra-reqwho"></div>
+				</div>
+				<div class="ra-card">
+					<div class="ra-card__head">
+						<h3>${__("2 · What they need to work with")}</h3>
+						<div class="ra-meta">${__("search any document")}</div>
+					</div>
+					<input class="ra-input ra-docsearch" type="search" style="width:100%"
+						placeholder="${__("Leave Application, Sales Invoice, Harvest…")}">
+					<div class="ra-results" hidden></div>
+					<div class="ra-basket" style="margin-top:14px"></div>
+					<div class="ra-meta ra-bundlehint" style="margin-top:10px"></div>
+				</div>
+			</div>
+			<div class="ra-card">
+				<div class="ra-card__head">
+					<h3>${__("3 · What that would take")}</h3>
+					<div class="ra-meta">${__("resolved from live permissions — nothing is written yet")}</div>
+				</div>
+				<div class="ra-verdictbody"><div class="ra-empty">${__(
+					"Pick a person and at least one document."
+				)}</div></div>
+			</div>
+		`);
+
+		// Anyone may ask for themselves; a delegate may ask for anyone in scope.
+		const delegate = this.summary.delegates > 0 || this.summary.scoped;
+		this.$main
+			.find(".ra-whonote")
+			.text(delegate ? __("yourself, or anyone you administer") : __("yourself"));
+
+		this.req_user = frappe.ui.form.make_control({
+			parent: this.$main.find(".ra-reqwho"),
+			df: {
+				fieldtype: "Link",
+				options: "User",
+				label: __("User"),
+				fieldname: "ra_req_user",
+				// The scoped query when the caller is a delegate; otherwise they
+				// can still type their own login, which the server allows.
+				get_query: "role_advisor.api.manageable_user_query",
+				change: () => this.resolve_request(),
+			},
+			render_input: true,
+		});
+		this.req_user.set_value(frappe.session.user);
+
+		let timer;
+		this.$main.find(".ra-docsearch").on("input", (event) => {
+			clearTimeout(timer);
+			const txt = $(event.currentTarget).val();
+			timer = setTimeout(() => this.search_docs(txt), 180);
+		});
+
+		this.draw_basket();
+	}
+
+	async search_docs(txt) {
+		const $results = this.$main.find(".ra-results");
+		if (!txt || txt.length < 2) {
+			$results.attr("hidden", true);
+			this.$main.find(".ra-bundlehint").text("");
+			return;
+		}
+
+		const [docs, bundles] = await Promise.all([
+			frappe.xcall("role_advisor.requests.search_documents", { txt, limit: 18 }),
+			frappe.xcall("role_advisor.requests.search_bundles", { txt, limit: 5 }),
+		]);
+
+		$results.removeAttr("hidden").html(
+			[
+				...bundles.map(
+					(bundle) => `
+					<div class="ra-result" data-bundle="${esc(bundle.name)}">
+						<div><b>${esc(bundle.transaction_name)}</b><small>${__("bundle")} · ${bundle.requirements
+							.map((r) => esc(r.document_type))
+							.join(", ")}</small></div>
+						<span class="ra-chip">${__("bundle")}</span>
+					</div>`
+				),
+				...docs.map(
+					(doc) => `
+					<div class="ra-result" data-doctype="${esc(doc.name)}">
+						<div><b>${esc(doc.name)}</b><small>${esc(doc.module)}</small></div>
+						${doc.is_submittable ? `<span class="ra-chip mute">${__("submittable")}</span>` : "<span></span>"}
+					</div>`
+				),
+			].join("") || `<div class="ra-empty">${__("Nothing matches.")}</div>`
+		);
+
+		this.$main
+			.find(".ra-bundlehint")
+			.text(
+				bundles.length
+					? ""
+					: __(
+							"No bundles authored — one is only worth creating when a single ask spans several documents."
+					  )
+			);
+
+		$results.find("[data-doctype]").on("click", (event) =>
+			this.add_document($(event.currentTarget).data("doctype"))
+		);
+		$results.find("[data-bundle]").on("click", (event) =>
+			this.add_bundle($(event.currentTarget).data("bundle"))
+		);
+	}
+
+	async add_document(doctype) {
+		if (this.basket.some((row) => row.doctype === doctype)) {
+			frappe.show_alert({ message: __("{0} is already listed.", [doctype]), indicator: "orange" });
+			return;
+		}
+		const rights = await frappe.xcall("role_advisor.requests.rights_for", { doctype });
+		// Default to the narrowest useful ask; the person widens it deliberately.
+		this.basket.push({ doctype, rights, chosen: ["read"] });
+		this.after_basket_change();
+	}
+
+	async add_bundle(bundle) {
+		const rows = await frappe.xcall("role_advisor.requests.expand_bundle", { bundle });
+		for (const row of rows) {
+			const existing = this.basket.find((item) => item.doctype === row.document_type);
+			if (existing) {
+				if (!existing.chosen.includes(row.right)) existing.chosen.push(row.right);
+				continue;
+			}
+			const rights = await frappe.xcall("role_advisor.requests.rights_for", {
+				doctype: row.document_type,
+			});
+			this.basket.push({
+				doctype: row.document_type,
+				rights,
+				chosen: [row.right],
+				bundle,
+			});
+		}
+		this.after_basket_change();
+	}
+
+	after_basket_change() {
+		this.$main.find(".ra-docsearch").val("");
+		this.$main.find(".ra-results").attr("hidden", true);
+		this.draw_basket();
+		this.resolve_request();
+	}
+
+	draw_basket() {
+		const $basket = this.$main.find(".ra-basket");
+		if (!this.basket.length) {
+			$basket.html(`<div class="ra-meta">${__("Nothing listed yet.")}</div>`);
+			return;
+		}
+
+		$basket.html(
+			this.basket
+				.map(
+					(row, index) => `
+			<div class="ra-basketrow" data-i="${index}">
+				<div><b>${esc(row.doctype)}</b>${
+						row.bundle ? `<small>${__("from")} ${esc(row.bundle)}</small>` : ""
+					}</div>
+				<div class="ra-rights">${row.rights
+					.map(
+						(right) =>
+							`<button class="ra-right ${
+								row.chosen.includes(right) ? "on" : ""
+							}" data-right="${esc(right)}">${esc(right)}</button>`
+					)
+					.join("")}</div>
+				<button class="ra-drop" title="${__("Remove")}">✕</button>
+			</div>`
+				)
+				.join("")
+		);
+
+		$basket.find(".ra-right").on("click", (event) => {
+			const $button = $(event.currentTarget);
+			const index = $button.closest(".ra-basketrow").data("i");
+			const right = $button.data("right");
+			const row = this.basket[index];
+			row.chosen = row.chosen.includes(right)
+				? row.chosen.filter((r) => r !== right)
+				: [...row.chosen, right];
+			if (!row.chosen.length) {
+				// A document with no right selected is not an ask.
+				this.basket.splice(index, 1);
+			}
+			this.draw_basket();
+			this.resolve_request();
+		});
+
+		$basket.find(".ra-drop").on("click", (event) => {
+			this.basket.splice($(event.currentTarget).closest(".ra-basketrow").data("i"), 1);
+			this.draw_basket();
+			this.resolve_request();
+		});
+	}
+
+	requirements() {
+		return this.basket.flatMap((row) =>
+			row.chosen.map((right) => ({
+				doctype: row.doctype,
+				right,
+				from_bundle: row.bundle || null,
+			}))
+		);
+	}
+
+	async resolve_request() {
+		const user = this.req_user && this.req_user.get_value();
+		const requirements = this.requirements();
+		const $body = this.$main.find(".ra-verdictbody");
+
+		if (!user || !requirements.length) {
+			$body.html(`<div class="ra-empty">${__("Pick a person and at least one document.")}</div>`);
+			return;
+		}
+
+		$body.html(`<div class="ra-empty"><span class="ra-spinner"></span> ${__("Working it out…")}</div>`);
+
+		let v;
+		try {
+			v = await frappe.xcall("role_advisor.requests.resolve", { user, requirements });
+		} catch (error) {
+			$body.html(`<div class="ra-empty">${esc(error.message)}</div>`);
+			return;
+		}
+
+		const tone =
+			v.resolution === "Covered" ? "covered" : v.resolution === "Fit Found" ? "fit" : "gap";
+
+		$body.html(`
+			<div class="ra-verdict ${tone}">
+				<h4>${esc(v.resolution)}</h4>
+				<p>${esc(v.notes)}</p>
+			</div>
+			<div class="ra-sect">
+				<b>${__("What was asked for")}</b>
+				<div class="ra-badges">${v.requirements
+					.map(
+						(row) =>
+							`<span class="ra-badge">${esc(row.document_type)} · ${esc(row.right)}</span>`
+					)
+					.join("")}</div>
+			</div>
+			${
+				v.profile
+					? `<div class="ra-sect">
+							<b>${__("Recommended")}</b>
+							<div class="ra-lrow clickable ra-openprof" data-profile="${esc(v.profile)}">
+								<div class="ra-rank lead">✓</div>
+								<div><div class="ra-name">${esc(v.profile)}</div><div class="ra-lmeta">${num(
+							v.doctypes
+						)} ${__("doctypes")} · ${num(v.grants)} ${__("grants")}</div></div>
+								<div class="ra-qty">${v.over_grant.length}<small>${__("extras")}</small></div>
+							</div>
+						</div>
+						<div class="ra-sect">
+							<b>${__("What it would also hand over")} · ${v.over_grant.length}</b>
+							<div class="ra-badges">${
+								v.over_grant.length
+									? v.over_grant
+											.slice(0, 40)
+											.map((line) => `<span class="ra-badge loss">${esc(line)}</span>`)
+											.join("")
+									: `<span class="ra-meta">${__("nothing beyond the ask")}</span>`
+							}</div>
+							${
+								v.over_grant.length > 40
+									? `<div class="ra-meta" style="margin-top:8px">${__(
+											"and {0} more",
+											[v.over_grant.length - 40]
+									  )}</div>`
+									: ""
+							}
+						</div>
+						${
+							v.alternatives && v.alternatives.length > 1
+								? `<div class="ra-sect"><b>${__("Other profiles that would also cover it")}</b>
+										<div class="ra-badges">${v.alternatives
+											.filter((a) => a !== v.profile)
+											.map((a) => `<span class="ra-badge">${esc(a)}</span>`)
+											.join("")}</div></div>`
+								: ""
+						}`
+					: ""
+			}
+			${
+				v.unreachable
+					? `<div class="ra-sect"><b>${__("Nothing on this site grants")}</b>
+							<div class="ra-badges">${v.unreachable
+								.map((line) => `<span class="ra-badge loss">${esc(line)}</span>`)
+								.join("")}</div></div>`
+					: ""
+			}
+			${
+				v.suggested_roles
+					? `<div class="ra-sect"><b>${__("A new profile from these roles would cover it")}</b>
+							<div class="ra-badges">${v.suggested_roles
+								.map((role) => `<span class="ra-badge gain">${esc(role)}</span>`)
+								.join("")}</div></div>`
+					: ""
+			}
+			<div style="margin-top:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+				<button class="ra-btn ra-logreq">${__("Record this request")}</button>
+				${
+					v.profile
+						? `<button class="ra-btn ghost ra-assignreq">${__("Record and assign {0}", [
+								esc(v.profile),
+						  ])}</button>`
+						: ""
+				}
+				<input class="ra-input ra-reason" placeholder="${__("Why is this needed? (optional)")}" style="flex:1;min-width:240px">
+			</div>
+		`);
+
+		$body.find(".ra-openprof").on("click", () => this.open_profile(v.profile));
+		$body.find(".ra-logreq").on("click", () => this.record_request(false));
+		$body.find(".ra-assignreq").on("click", () => this.record_request(true));
+	}
+
+	async record_request(and_assign) {
+		const user = this.req_user.get_value();
+		const reason = this.$main.find(".ra-reason").val() || "";
+		const $buttons = this.$main.find(".ra-logreq, .ra-assignreq").prop("disabled", true);
+
+		try {
+			const result = await frappe.xcall("role_advisor.requests.submit_request", {
+				user,
+				requirements: this.requirements(),
+				reason,
+			});
+
+			if (and_assign && result.profile) {
+				const outcome = await frappe.xcall("role_advisor.requests.fulfil", {
+					request: result.request,
+				});
+				frappe.show_alert({
+					message: __("{0} recorded and {1} assigned", [result.request, outcome.profiles.join(", ")]),
+					indicator: "green",
+				});
+				this.basket = [];
+				this.cache = {};
+				this.load();
+				return;
+			}
+
+			frappe.show_alert({
+				message: __("{0} recorded — {1}", [result.request, result.resolution]),
+				indicator: "blue",
+			});
+			this.basket = [];
+			this.after_basket_change();
+		} catch (error) {
+			frappe.msgprint({ title: __("Refused"), message: esc(error.message), indicator: "red" });
+			$buttons.prop("disabled", false);
 		}
 	}
 

@@ -1,0 +1,49 @@
+{
+ "actions": [],
+ "autoname": "format:AR-{YY}{MM}-{#####}",
+ "creation": "2026-08-21 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["for_user", "raised_by", "status", "col1", "company", "reason",
+                 "sec_what", "transactions",
+                 "sec_res", "resolution", "recommended_profile", "over_grant", "resolution_notes",
+                 "sec_done", "assigned_profile", "assignment_log"],
+ "fields": [
+  {"fieldname": "for_user", "fieldtype": "Link", "label": "For User", "options": "User", "reqd": 1,
+   "in_list_view": 1, "in_standard_filter": 1},
+  {"fieldname": "raised_by", "fieldtype": "Link", "label": "Raised By", "options": "User", "read_only": 1},
+  {"fieldname": "status", "fieldtype": "Select", "label": "Status", "in_list_view": 1, "in_standard_filter": 1,
+   "options": "Open\nResolved\nFulfilled\nRefused", "default": "Open", "read_only": 1},
+  {"fieldname": "col1", "fieldtype": "Column Break"},
+  {"fieldname": "company", "fieldtype": "Link", "label": "Company", "options": "Company", "read_only": 1},
+  {"fieldname": "reason", "fieldtype": "Small Text", "label": "Why this is needed"},
+
+  {"fieldname": "sec_what", "fieldtype": "Section Break", "label": "What they need to do"},
+  {"fieldname": "transactions", "fieldtype": "Table", "label": "Transactions", "options": "Access Request Line", "reqd": 1},
+
+  {"fieldname": "sec_res", "fieldtype": "Section Break", "label": "Resolution"},
+  {"fieldname": "resolution", "fieldtype": "Select", "label": "Resolution", "read_only": 1, "in_list_view": 1,
+   "options": "\nCovered\nFit Found\nGap - New Profile Needed\nGap - New Role Needed"},
+  {"fieldname": "recommended_profile", "fieldtype": "Link", "label": "Recommended Profile",
+   "options": "Role Profile", "read_only": 1},
+  {"fieldname": "over_grant", "fieldtype": "Small Text", "label": "What it would over-grant", "read_only": 1},
+  {"fieldname": "resolution_notes", "fieldtype": "Small Text", "label": "Resolution Notes", "read_only": 1},
+
+  {"fieldname": "sec_done", "fieldtype": "Section Break", "label": "Outcome"},
+  {"fieldname": "assigned_profile", "fieldtype": "Link", "label": "Assigned Profile", "options": "Role Profile", "read_only": 1},
+  {"fieldname": "assignment_log", "fieldtype": "Link", "label": "Assignment Log", "options": "Access Assignment Log", "read_only": 1}
+ ],
+ "links": [],
+ "modified": "2026-08-21 00:00:00.000000",
+ "module": "Role Advisor",
+ "name": "Access Request",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1, "print": 1, "email": 1, "share": 1},
+  {"role": "User Manager", "read": 1, "write": 1, "create": 1, "report": 1},
+  {"role": "All", "read": 1, "create": 1, "if_owner": 1}
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

@@ -46,6 +46,34 @@ A profile that grants write on `User`, `Role`, `Role Profile`, `Module Profile`,
 allowlisted. That check is **computed from the capability index**, not matched on
 role names — a name list rots the moment someone creates `Site Admin Copy`.
 
+### Requesting access by what you need to do
+
+The unit is the **doctype**, not a catalogue entry. Someone names the documents
+they need to work with and ticks the rights; the profile is worked out for them.
+Nobody raising a request has to know that `Agriculture Supervisor` is the
+answer.
+
+Four outcomes, and the two Gap kinds are different problems:
+
+| Resolution | Meaning |
+|---|---|
+| `Covered` | what they already hold grants every line |
+| `Fit Found` | an existing profile covers it — with the full over-grant list |
+| `Gap - New Profile Needed` | every piece exists in some role, but no profile bundles them |
+| `Gap - New Role Needed` | some line is granted by no role on the site |
+
+Anyone may ask for themselves; a delegate may ask for anyone in scope. Fulfilling
+calls the ordinary gated `assign_access`, so the request flow has **no
+privileged shortcut of its own** — a delegate can only fulfil what they could
+already have assigned by hand.
+
+**`Access Transaction` is an optional bundle, not the entry point.** A doctype
+plus a right already says what someone needs, in vocabulary users see on every
+form, and it needs no authoring and never goes stale when an app adds doctypes.
+A bundle earns its place only where one ask spans several documents — "run
+payroll" needs Salary Slip, Payroll Entry and Journal Entry — and a bundle of
+one is refused, because it is pure indirection over a document search.
+
 ### Access Dashboard
 
 ```

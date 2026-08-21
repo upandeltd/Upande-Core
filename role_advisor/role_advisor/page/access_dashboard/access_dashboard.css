@@ -225,3 +225,27 @@
 .ra-checkline input{width:15px;height:15px;accent-color:#0a0a0a;cursor:pointer}
 /* Long free text must not stretch a row - full value lives in the title. */
 .ra-ellipsis{max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Request builder — the doctype is the unit, so the picker is a doc search */
+.ra-basket{display:flex;flex-direction:column;gap:8px;min-height:60px}
+.ra-basketrow{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;background:rgba(10,10,10,0.03);border-radius:12px;padding:9px 12px}
+.ra-basketrow b{font:600 13px var(--sans);color:var(--ink)}
+.ra-basketrow small{display:block;font:500 11px var(--sans);color:var(--ink-mute)}
+.ra-rights{display:flex;flex-wrap:wrap;gap:4px}
+.ra-right{border:0;background:rgba(10,10,10,0.06);color:var(--ink-4);font:500 11px var(--mono);padding:4px 9px;border-radius:7px;cursor:pointer;transition:all .15s}
+.ra-right:hover{background:rgba(10,10,10,0.12);color:var(--ink)}
+.ra-right.on{background:var(--ink);color:#fafaf6}
+.ra-drop{border:0;background:transparent;color:var(--ink-mute);cursor:pointer;font-size:15px;line-height:1;padding:4px 6px;border-radius:6px}
+.ra-drop:hover{background:rgba(196,48,43,0.10);color:var(--sev-high)}
+.ra-results{border:1px solid var(--hairline);border-radius:12px;max-height:280px;overflow-y:auto;margin-top:8px}
+.ra-result{display:grid;grid-template-columns:1fr auto;gap:10px;padding:9px 13px;cursor:pointer;border-bottom:1px solid var(--hairline);align-items:center}
+.ra-result:last-child{border-bottom:0}
+.ra-result:hover{background:rgba(10,10,10,0.03)}
+.ra-result b{font:600 13px var(--sans);color:var(--ink)}
+.ra-result small{font:500 11px var(--sans);color:var(--ink-mute)}
+.ra-verdict{border-radius:16px;padding:20px 22px;margin-bottom:16px}
+.ra-verdict.covered{background:rgba(63,143,79,0.10)}
+.ra-verdict.fit{background:rgba(217,165,20,0.12)}
+.ra-verdict.gap{background:rgba(196,48,43,0.09)}
+.ra-verdict h4{margin:0 0 5px;font:600 17px var(--sans);color:var(--ink);letter-spacing:-.3px}
+.ra-verdict p{margin:0;font-size:13px;color:var(--ink-3)}
