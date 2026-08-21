@@ -35,7 +35,9 @@ class TestWorkbook(IntegrationTestCase):
 	def test_row_counts_match_the_database(self):
 		"""A sheet shorter than the table is a silently truncated export."""
 		expected = {
-			"Users": frappe.db.count("User", {"enabled": 1}),
+			# Every user, enabled or not: a disabled account still holds roles
+			# and a profile, and re-enabling it restores them silently.
+			"Users": frappe.db.count("User"),
 			"Role Profiles": frappe.db.count("Role Profile"),
 			"Roles": frappe.db.count("Role"),
 		}
@@ -76,6 +78,17 @@ class TestWorkbook(IntegrationTestCase):
 			),
 		)
 		os.remove(os.path.join(frappe.utils.get_site_path("private", "files"), "_ra_test_workbook2.xlsx"))
+
+	def test_disabled_users_are_included(self):
+		"""Filtering to enabled=1 is what under-reported the user list."""
+		sheet = self.book["Users"]
+		headers = [cell.value for cell in next(sheet.iter_rows(max_row=1))]
+		column = headers.index("enabled")
+
+		values = [row[column] for row in sheet.iter_rows(min_row=2, values_only=True)]
+
+		self.assertIn(0, values, "expected at least one disabled user")
+		self.assertEqual(len(values), frappe.db.count("User"))
 
 	def test_duplicate_profiles_are_named_in_the_duplicate_column(self):
 		"""Upande Team's three names grant identically; the sheet must say so."""

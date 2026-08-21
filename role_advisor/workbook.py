@@ -17,9 +17,10 @@ from collections import defaultdict
 import frappe
 from frappe.utils import cint, get_datetime, nowdate
 
-from role_advisor import capability, privilege, settings, taxonomy
+from role_advisor import capability, module_workbook, privilege, settings, taxonomy
 
 ACTIONS = "Keep,Rename,Merge,Delete,Investigate"
+KEEP_OPTIONS = ["Keep", "Remove", "Change", "New"]
 
 # Header colours: grey for observed facts, amber for anything you may edit.
 FACT_BG = "#37474F"
@@ -101,12 +102,14 @@ def users_rows() -> list[dict]:
 		       (select count(*) from `tabUser Permission` up where up.user = u.name) as user_permissions
 		from `tabUser` u
 		left join `tabEmployee` e on e.user_id = u.name and e.status = 'Active'
-		where u.enabled = 1
-		order by e.company, e.designation, u.full_name
+		order by u.enabled desc, e.company, e.designation, u.full_name
 		""",
 		as_dict=True,
 	)
 
+	# Disabled users are included deliberately. Filtering them out is what
+	# under-reported the user list; a disabled account still holds roles and a
+	# profile, and re-enabling it restores every one of them silently.
 	privileged_roles = {"System Manager", "User Manager"}
 	held = defaultdict(set)
 	for row in frappe.get_all(
@@ -301,6 +304,107 @@ SHEETS = (
 		],
 	),
 )
+
+
+def _write_sheet(book, title, columns, rows, formats, section_formats=None):
+	"""Write one sheet. Shared by every sheet in the workbook so the header
+	styling, freeze panes, autofilter and dropdowns cannot drift apart."""
+	sheet = book.add_worksheet(title)
+
+	for position, (name, width, editable) in enumerate(columns):
+		label = f"{name} (EDITABLE)" if editable else name
+		sheet.write(0, position, label, formats["edit"] if editable else formats["fact"])
+		sheet.set_column(position, position, width)
+
+	for offset, row in enumerate(rows, start=1):
+		fmt = (section_formats or {}).get(row.get("section"))
+		for position, (name, _width, _editable) in enumerate(columns):
+			value = row.get(name)
+			if value is None or value == "":
+				if fmt:
+					sheet.write_blank(offset, position, None, fmt)
+				continue
+			if name == "last_active" and value:
+				sheet.write_datetime(offset, position, get_datetime(value), formats["stamp"])
+			elif fmt:
+				sheet.write(offset, position, value, fmt)
+			else:
+				sheet.write(offset, position, value)
+
+	sheet.freeze_panes(1, 1)
+	if rows:
+		sheet.autofilter(0, 0, len(rows), len(columns) - 1)
+		names = [column[0] for column in columns]
+		for target, options in (("action", ACTIONS.split(",")), ("keep", KEEP_OPTIONS), ("status", KEEP_OPTIONS)):
+			if target in names:
+				column = names.index(target)
+				sheet.data_validation(
+					1, column, len(rows), column,
+					{"validate": "list", "source": options},
+				)
+
+	return sheet
+
+
+def build_combined(path: str | None = None) -> str:
+	"""One workbook holding every sheet, for both audiences.
+
+	Order runs widest to narrowest: the module Overview first, then the people,
+	then the profiles and roles that grant their access, then the full
+	permission matrix, then one tab per module for its owner.
+
+	All of it reads the local bench, which is the only place a v16 capability
+	index exists. Production is v15 and has no `User Role Profile` doctype, so
+	the *user list* there is fresher - see `live_export` for that.
+	"""
+	import xlsxwriter
+
+	if not path:
+		app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+		docs = os.path.join(app_dir, "docs")
+		os.makedirs(docs, exist_ok=True)
+		path = os.path.join(docs, f"access-workbook-{nowdate()}.xlsx")
+
+	analysis = _analysis()
+	module_data = module_workbook.gather()
+
+	taken: set[str] = {"Overview", "Users", "Users by Module", "Role Profiles", "Roles", "Profile Index", "Permissions"}
+	tabs = {
+		module: module_workbook._tab_name(module, taken)
+		for module in sorted(module_data["by_module"])
+	}
+
+	book = xlsxwriter.Workbook(path)
+	formats = {
+		"fact": book.add_format({"bold": True, "bg_color": FACT_BG, "font_color": "white", "border": 1}),
+		"edit": book.add_format({"bold": True, "bg_color": EDIT_BG, "font_color": "white", "border": 1}),
+		"stamp": book.add_format({"num_format": "yyyy-mm-dd hh:mm"}),
+	}
+	sections = {
+		module_workbook.SECTION_PROFILE: book.add_format({"bold": True, "bg_color": module_workbook.PROFILE_BG}),
+		module_workbook.SECTION_USER: book.add_format({"bg_color": module_workbook.USER_BG}),
+		module_workbook.SECTION_ROLE: book.add_format({"bg_color": module_workbook.ROLE_BG}),
+		module_workbook.SECTION_ADD: book.add_format({"bg_color": module_workbook.ADD_BG, "italic": True}),
+	}
+
+	_write_sheet(book, "Overview", module_workbook.OVERVIEW_COLUMNS,
+	             module_workbook.overview_rows(module_data, tabs), formats)
+	_write_sheet(book, "Users", SHEETS[0][1], users_rows(), formats)
+	_write_sheet(book, "Users by Module", module_workbook.USERS_BY_MODULE_COLUMNS,
+	             module_workbook.users_by_module_rows(module_data), formats)
+	_write_sheet(book, "Role Profiles", SHEETS[1][1], profile_rows(analysis), formats)
+	_write_sheet(book, "Roles", SHEETS[2][1], role_rows(analysis), formats)
+	_write_sheet(book, "Profile Index", module_workbook.PROFILE_INDEX_COLUMNS,
+	             module_workbook.profile_index_rows(module_data), formats)
+	_write_sheet(book, "Permissions", SHEETS[3][1], permission_rows(analysis), formats)
+
+	for module in sorted(module_data["by_module"]):
+		_write_sheet(book, tabs[module], module_workbook.COLUMNS,
+		             module_workbook.module_rows(module, module_data), formats, sections)
+
+	book.close()
+
+	return path
 
 
 def build(path: str | None = None) -> str:

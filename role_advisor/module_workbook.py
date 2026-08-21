@@ -55,6 +55,7 @@ COLUMNS = (
 	("delete", 8, 0),
 	("report", 8, 0),
 	("export", 8, 0),
+	("enabled", 9, 0),
 	("profile_users", 13, 0),
 	("spans_modules", 14, 0),
 	("also_on_sheets", 44, 0),
@@ -107,18 +108,24 @@ def gather() -> dict:
 	for row in frappe.db.sql(
 		"""
 		select p.role_profile as role_profile, u.name as user, u.full_name as full_name,
-		       e.company as company, e.designation as designation
+		       u.enabled as enabled, e.company as company, e.designation as designation
 		from `tabUser Role Profile` p
-		join `tabUser` u on u.name = p.parent and u.enabled = 1
+		join `tabUser` u on u.name = p.parent
 		left join `tabEmployee` e on e.user_id = u.name and e.status = 'Active'
 		where p.parenttype = 'User'
-		order by e.company, u.full_name
+		order by u.enabled desc, e.company, u.full_name
 		""",
 		as_dict=True,
 	):
 		holders[row["role_profile"]].append(row)
 
+	# Disabled holders are counted separately: a profile held only by leavers is
+	# a different finding from one nobody holds at all.
 	users = {profile: len(rows) for profile, rows in holders.items()}
+	users_enabled = {
+		profile: sum(1 for row in rows if row.get("enabled"))
+		for profile, rows in holders.items()
+	}
 
 	all_roles = frappe.get_all("Role", pluck="name")
 	role_caps = capability._capabilities_from_rows(
@@ -150,6 +157,7 @@ def gather() -> dict:
 		"role_caps": role_caps,
 		"module_of": module_of,
 		"users": users,
+		"users_enabled": users_enabled,
 		"holders": holders,
 	}
 
@@ -168,6 +176,7 @@ def module_rows(module: str, data: dict) -> list[dict]:
 				"section": SECTION_PROFILE,
 				"role_profile": profile,
 				"profile_users": data["users"].get(profile, 0),
+				"enabled": data["users_enabled"].get(profile, 0),
 				"spans_modules": len(spans) + 1,
 				# The reconciliation flag: every other sheet this profile is on.
 				"also_on_sheets": ", ".join(spans),
@@ -187,6 +196,7 @@ def module_rows(module: str, data: dict) -> list[dict]:
 					"role_profile": profile,
 					"user": holder["user"],
 					"user_context": context or "(no active employee record)",
+					"enabled": holder.get("enabled", 0),
 				}
 			)
 
@@ -250,6 +260,14 @@ def overview_rows(data: dict, tabs: dict[str, str]) -> list[dict]:
 						for holder in data["holders"].get(profile, [])
 					}
 				),
+				"enabled_with_access": len(
+					{
+						holder["user"]
+						for profile in profiles
+						for holder in data["holders"].get(profile, [])
+						if holder.get("enabled")
+					}
+				),
 				"permission_rows": sum(len(v) for v in profiles.values()),
 				"owner": "",
 				"status": "",
@@ -266,6 +284,7 @@ OVERVIEW_COLUMNS = (
 	("doctypes_in_module", 18, 0),
 	("profiles_touching", 18, 0),
 	("users_with_access", 18, 0),
+	("enabled_with_access", 19, 0),
 	("permission_rows", 16, 0),
 	("owner", 26, 1),
 	("status", 16, 1),
@@ -275,6 +294,7 @@ OVERVIEW_COLUMNS = (
 PROFILE_INDEX_COLUMNS = (
 	("role_profile", 46, 0),
 	("users", 8, 0),
+	("enabled_users", 14, 0),
 	("roles", 8, 0),
 	("modules_spanned", 16, 0),
 	("module_sheets", 90, 0),
@@ -290,6 +310,7 @@ def profile_index_rows(data: dict) -> list[dict]:
 			{
 				"role_profile": profile,
 				"users": data["users"].get(profile, 0),
+				"enabled_users": data["users_enabled"].get(profile, 0),
 				"roles": len(data["profile_roles"].get(profile, [])),
 				"modules_spanned": len(modules),
 				"module_sheets": ", ".join(modules),
@@ -303,6 +324,7 @@ USERS_BY_MODULE_COLUMNS = (
 	("module", 30, 0),
 	("user", 34, 0),
 	("full_name", 24, 0),
+	("enabled", 9, 0),
 	("company", 20, 0),
 	("designation", 26, 0),
 	("role_profile", 42, 0),
@@ -327,6 +349,7 @@ def users_by_module_rows(data: dict) -> list[dict]:
 						"module": module,
 						"user": holder["user"],
 						"full_name": holder.get("full_name"),
+						"enabled": holder.get("enabled", 0),
 						"company": holder.get("company"),
 						"designation": holder.get("designation"),
 						"role_profile": profile,

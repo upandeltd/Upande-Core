@@ -51,55 +51,56 @@ role names — a name list rots the moment someone creates `Site Admin Copy`.
 `Designation Gap`, `Module Exposure`, `Role Drift`, `System Manager Audit`,
 `Role Profile Overgrant`. All read-only.
 
-### Workbooks
+### Workbook
 
-Two, for two audiences. Both read-only; both import into Google Sheets via
-File → Import.
-
-**Audit workbook** — for whoever owns access overall.
+One file, every sheet. Imports into Google Sheets via File → Import.
 
 ```bash
-bench --site <site> execute role_advisor.workbook.build
+bench --site <site> execute role_advisor.workbook.build_combined
 ```
 
-`docs/user-access-workbook-<date>.xlsx`. Four sheets: users, role profiles (with
-duplicate and subset analysis plus proposed canonical names from
-`taxonomy.py`), roles, and the full profile-by-doctype permission matrix.
+`docs/access-workbook-<date>.xlsx` — 71 sheets, ~102k rows.
 
-**Module-owner workbook** — for the person who owns a module.
+Seven cross-cutting tabs, widest to narrowest:
 
-```bash
-bench --site <site> execute role_advisor.module_workbook.build
-```
+| Tab | Rows | What it answers |
+|---|---|---|
+| `Overview` | one per module | how exposed is each module, and who owns it |
+| `Users` | **every** user | what does each person hold |
+| `Users by Module` | module × user × profile | who can reach my module |
+| `Role Profiles` | one per profile | duplicates, subsets, proposed canonical names |
+| `Roles` | one per role | what grants it, including the ones in no profile |
+| `Profile Index` | one per profile | which module tabs a profile appears on |
+| `Permissions` | profile × doctype | the full matrix |
 
-`docs/module-owner-workbook-<date>.xlsx`. Three cross-cutting tabs —
-`Overview` (each module with its doctype count, profiles touching it and
-**distinct users with access**), `Users by Module` (one row per module, user and
-profile, with company and designation), and `Profile Index` — then one tab per
-module.
+Then **one tab per module**. Inside each, one block per role profile touching
+that module, and within each block three grouped areas:
 
-Inside each module tab, one block per role profile touching that module, and
-within each block three grouped areas:
-
-- **USERS** — who actually holds the profile, with company and designation
+- **USERS** — who holds the profile, with company, designation and `enabled`
 - **ROLES** — the roles composing it that reach this module
 - **PERMISSIONS** — what those roles grant on this module's doctypes
 
-`+ ADD` rows let the owner extend each area.
+`+ ADD` rows let an owner extend each area. Columns marked `(EDITABLE)` are
+inert, parked for a future importer.
 
-Columns marked `(EDITABLE)` are inert, parked for a future importer.
+**Disabled users are included throughout**, with an `enabled` column to filter
+on. A disabled account still holds its roles and profile, and re-enabling it
+restores every grant silently — so leaving them out understates real exposure.
+`Overview` reports `users_with_access` and `enabled_with_access` side by side.
 
 > **A role profile spans a median of 35 modules**, so the same profile appears on
 > many module tabs. The `also_on_sheets` column on every PROFILE row names the
 > others, so two owners editing the same profile can see they are about to
-> disagree. Reconciling that is a human step before anything is applied — the
-> workbook surfaces the conflict rather than resolving it.
+> disagree. Reconciling that is a human step before anything is applied.
 
-> **Applying a module sheet is not yet implemented, and is not trivial.** If any
-> `Custom DocPerm` row exists for a doctype, Frappe discards that doctype's
-> standard `DocPerm`s for *every* role. Any importer must therefore write the
-> complete permission set for each doctype it touches, not just the module
+> **Applying a filled-in module sheet is not implemented, and is not trivial.**
+> If any `Custom DocPerm` row exists for a doctype, Frappe discards that
+> doctype's standard `DocPerm`s for *every* role. An importer must therefore
+> write the complete permission set for each doctype it touches, not just the
 > owner's additions, or roles nobody considered will silently lose access.
+
+`workbook.build` and `module_workbook.build` still produce the two narrower
+files if you want to hand someone only their part.
 
 ### Exporting from a remote site
 
