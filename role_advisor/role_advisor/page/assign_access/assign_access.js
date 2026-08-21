@@ -53,13 +53,15 @@ class UserAccessConsole {
 		this.user_field = frappe.ui.form.make_control({
 			parent: this.$pick,
 			df: {
-				fieldtype: "Autocomplete",
+				fieldtype: "Link",
+				options: "User",
 				label: __("User"),
 				fieldname: "user",
 				placeholder: __("Search the users you administer"),
-				// Options are the server's scoped list. Never a plain User link:
-				// that would offer names the caller cannot actually manage.
-				get_data: () => this.user_options || [],
+				// A scoped server query, not a plain User link. An unscoped link
+				// would suggest names the caller cannot manage and then fail at
+				// assign_access, which reads as the field being broken.
+				get_query: "role_advisor.api.manageable_user_query",
 				change: () => this.on_user_change(),
 			},
 			render_input: true,
@@ -151,16 +153,26 @@ class UserAccessConsole {
 		});
 	}
 
-	on_user_change() {
+	async on_user_change() {
 		const user = this.user_field.get_value();
 		if (!user || user === this.selected_user) {
 			return;
 		}
 
 		this.selected_user = user;
-		const row = (this.users || []).find((candidate) => candidate.name === user);
+		let row = (this.users || []).find((candidate) => candidate.name === user);
 		if (!row) {
-			return;
+			// The picker searches the server directly, so a match may not be in
+			// the cached first page. Fall back to reading the one record.
+			const fetched = await frappe.xcall("role_advisor.api.get_manageable_users", {
+				search: user,
+				limit: 1,
+			});
+			row = (fetched || [])[0];
+			if (!row) {
+				return;
+			}
+			(this.users = this.users || []).push(row);
 		}
 
 		this.$detail.html(`

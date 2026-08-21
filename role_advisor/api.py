@@ -40,17 +40,70 @@ def _target_profiles(before_profiles: list[str], role_profile: str) -> list[str]
 
 
 @frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def manageable_user_query(
+	doctype=None, txt="", searchfield=None, start=0, page_len=20, filters=None, **kwargs
+):
+	"""Link-field search restricted to the users the caller administers.
+
+	A plain `User` link would offer every name on the site and then fail at
+	`assign_access`, which reads as the field being broken. Scoping the search
+	itself means the picker can only ever suggest a legitimate target.
+
+	Signature follows `frappe.desk.search.search_link`, which calls this with
+	positional (doctype, txt, searchfield, start, page_len, filters) plus keyword
+	arguments this function has no use for.
+	"""
+	admin = delegation.assert_delegate()
+
+	companies = delegation.scope_companies(admin)
+	if not companies:
+		return []
+
+	like = f"%{txt or ''}%"
+	rows = frappe.db.sql(
+		"""
+		select u.name, u.full_name
+		from `tabUser` u
+		join `tabEmployee` e
+		     on e.user_id = u.name and e.status = 'Active'
+		where u.enabled = 1
+		  and e.company in %(companies)s
+		  and (u.name like %(like)s or u.full_name like %(like)s)
+		order by u.full_name
+		limit %(page_len)s offset %(start)s
+		""",
+		{
+			"companies": tuple(companies),
+			"like": like,
+			"page_len": cint(page_len) or 20,
+			"start": cint(start) or 0,
+		},
+	)
+
+	# Branch scope and the reserved-user rules live in `can_manage`; re-check so
+	# the picker and the write gate can never disagree.
+	return [row for row in rows if delegation.can_manage(admin, row[0])]
+
+
+@frappe.whitelist()
 def get_manageable_users(search: str | None = None, limit: int = 50) -> list[dict]:
 	"""Users inside the caller's scope."""
 	admin = delegation.assert_delegate()
 
 	filters = {"enabled": 1}
-	if search:
-		filters["full_name"] = ("like", f"%{search}%")
+	# Match either the login or the display name: callers search by both, and a
+	# full_name-only filter silently returns nothing for an email address.
+	or_filters = (
+		{"name": ("like", f"%{search}%"), "full_name": ("like", f"%{search}%")}
+		if search
+		else None
+	)
 
 	rows = frappe.get_all(
 		"User",
 		filters=filters,
+		or_filters=or_filters,
 		fields=["name", "full_name", "user_type", "module_profile"],
 		limit=cint(limit) or 50,
 		order_by="full_name asc",

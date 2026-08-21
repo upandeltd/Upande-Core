@@ -99,6 +99,38 @@ class TestDelegateAPI(IntegrationTestCase):
 		with self.assertRaises(frappe.PermissionError):
 			api.assign_access(IN_SCOPE, ALLOWED_PROFILE)
 
+	def test_the_link_query_returns_only_users_in_scope(self):
+		"""The picker must not suggest anyone assign_access would then refuse."""
+		rows = api.manageable_user_query(
+			doctype="User", txt="", searchfield="name", start=0, page_len=500, filters=None
+		)
+		names = [row[0] for row in rows]
+
+		self.assertIn(IN_SCOPE, names)
+		self.assertNotIn(OUT_OF_SCOPE, names)
+
+	def test_the_link_query_matches_on_login_and_on_name(self):
+		by_email = api.manageable_user_query(
+			doctype="User", txt=IN_SCOPE.split("@")[0], searchfield="name",
+			start=0, page_len=20, filters=None,
+		)
+
+		self.assertIn(IN_SCOPE, [row[0] for row in by_email])
+
+	def test_the_link_query_refuses_a_non_delegate(self):
+		frappe.set_user(OUT_OF_SCOPE)
+
+		with self.assertRaises(frappe.PermissionError):
+			api.manageable_user_query(
+				doctype="User", txt="", searchfield="name", start=0, page_len=20, filters=None
+			)
+
+	def test_search_matches_an_email_not_just_a_display_name(self):
+		"""A full_name-only filter silently returns nothing for an address."""
+		rows = api.get_manageable_users(search=IN_SCOPE, limit=5)
+
+		self.assertIn(IN_SCOPE, [row["name"] for row in rows])
+
 	def test_assign_access_refuses_administrator_as_a_target(self):
 		with self.assertRaises(frappe.PermissionError):
 			api.assign_access("Administrator", ALLOWED_PROFILE)
