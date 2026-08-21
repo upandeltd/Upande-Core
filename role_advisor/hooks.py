@@ -10,20 +10,10 @@ app_license = "mit"
 
 # required_apps = []
 
-# Role Advisor is its own app on the /apps screen, not a workspace someone has
-# to know to look for. The route is a desk route because the page needs
-# `frappe.ui.form.make_control` for its scoped Link pickers and `frappe.confirm`
-# for its writes - a website page gets neither. The desk chrome is hidden once
-# the page loads, so what the route serves does not look like the desk.
-add_to_apps_screen = [
-	{
-		"name": "role_advisor",
-		"logo": "/assets/role_advisor/images/role-advisor-logo.svg",
-		"title": "Role Advisor",
-		"route": "/desk/access-dashboard",
-		"has_permission": "role_advisor.permissions.has_app_permission",
-	}
-]
+# No apps-screen entry. The dashboard is a view layer inside upande_core's
+# IT Operations page now, and that app owns the tile - one door, named for the
+# page it opens. Two tiles onto one page was the confusing part.
+
 
 # `/role-advisor` is the address to give someone. It lands on the same page.
 # The dashboard lives on upande_core's portal page now, so the short URLs land
