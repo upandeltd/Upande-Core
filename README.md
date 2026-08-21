@@ -132,6 +132,42 @@ python3 role_advisor/user_guide.py
 `docs/Role Advisor - User Guide.docx`, six pages. Regenerate it after any change
 to the workflow it describes.
 
+### Standards workbook
+
+Which roles ship with Frappe, which were invented here, and how to create both
+consistently.
+
+```bash
+bench --site <site> execute role_advisor.standards.build
+```
+
+`docs/Frappe v16 Roles and Profiles - Standard.xlsx` — a `Methodology` sheet
+(naming standard, rules for roles, rules for profiles, the lifecycle, and what
+to stop doing), then `Standard Roles`, `Custom Roles` and `Role Profiles`.
+
+A role counts as **shipped** if any installed app declares it, in a DocType's
+`permissions` array or a `fixtures/role.json`. Everything else is local, and the
+sheet names who created it and when.
+
+**Frappe ships no Role Profiles at all** — not one, in any installed app. A
+standard set of profiles cannot be discovered, only authored, which is what the
+Methodology sheet is for.
+
+### Syncing users from a remote site
+
+Makes a local bench match production for testing.
+
+```bash
+export KAITET_HOST=... KAITET_TOKEN=...
+bench --site <site> execute role_advisor.live_sync.run                      # dry run
+bench --site <site> execute role_advisor.live_sync.run --kwargs "{'apply': True}"
+```
+
+Touches `User` only: creation, `enabled`, `user_type`, names, module profile and
+role profile. Never roles directly, never passwords or API keys, and **never
+deletes** — local-only accounts are reported, not removed. Maps the remote's
+v15 `role_profile_name` into v16's `role_profiles` child table.
+
 ### Exporting from a remote site
 
 The site holding the real data may not be the site this app runs on — Kaitet's
