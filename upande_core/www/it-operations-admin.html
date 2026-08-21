@@ -434,6 +434,39 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .aph .dt-res{border:1px solid var(--hairline) !important;border-radius:14px !important;box-shadow:var(--shadow-hover) !important;padding:6px !important;overflow:hidden}
 .aph .dt-res .it{padding:9px 12px !important;border-radius:9px !important}
 .aph .dt-res .it:hover{background:rgba(10,10,10,.05)}
+
+/* ================= FINAL UI CONSISTENCY PASS ================= */
+/* One KPI-card spec across every page (fixes big/small mismatch) */
+.aph .aph-kpis, .aph .kpi-row{grid-template-columns:repeat(auto-fit,minmax(200px,1fr)) !important;gap:16px !important;margin-bottom:24px}
+.aph .aph-kpi, .aph .kpi{
+  background:var(--surface-2) !important;border:0 !important;border-radius:18px !important;
+  padding:20px 22px !important;min-height:116px !important;box-shadow:var(--shadow-card) !important;
+  display:flex !important;flex-direction:column !important;justify-content:space-between !important;
+  position:relative;overflow:hidden;transition:transform .25s ease,box-shadow .25s ease}
+.aph .aph-kpi:hover, .aph .kpi:hover{transform:translateY(-3px);box-shadow:var(--shadow-hover) !important}
+.aph .aph-kpi .lbl, .aph .kpi .lbl{font:500 10px var(--sans) !important;text-transform:uppercase;letter-spacing:1.2px;color:var(--ink-mute) !important;padding-right:0 !important;margin:0 0 2px}
+.aph .aph-kpi .v, .aph .kpi .big, .aph .kpi .val{font:600 32px/1 var(--sans) !important;letter-spacing:-1px;color:var(--ink) !important;margin-top:10px}
+.aph .aph-kpi .sub, .aph .kpi .sub{font:500 11px var(--sans) !important;color:var(--ink-mute) !important;margin-top:8px}
+
+/* One card spec (radius + shadow) everywhere */
+.aph .aph-card, .aph .section{border:0 !important;border-radius:20px !important;box-shadow:var(--shadow-card) !important;margin-bottom:18px}
+.aph .aph-card-hd{padding:22px 26px !important;border-bottom:1px solid var(--hairline) !important;gap:14px}
+.aph .aph-card-body{padding:20px 26px 24px !important}
+.aph .section{padding:24px 26px !important}
+.aph .aph-card-hd .ttl{font:600 16px var(--sans) !important;letter-spacing:-.02em;color:var(--ink)}
+
+/* Consistent table padding everywhere (fixes zero/cramped-padding tables) */
+.aph .aph-tbl td, .aph .aph-tbl th{padding:13px 20px !important;border-color:var(--hairline) !important;vertical-align:middle}
+.aph .aph-tbl th{font:600 10px var(--sans) !important;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-mute) !important}
+.aph .aph-content table:not(.aph-tbl) td, .aph .aph-content table:not(.aph-tbl) th{padding:11px 14px !important;border-color:var(--hairline) !important}
+.aph .aph-content table:not(.aph-tbl) th{font-weight:600;color:var(--ink-mute)}
+.aph .aph-modal-body table td, .aph .aph-modal-body table th{padding:11px 14px !important}
+
+/* topbar controls: never wrap, scroll if tight */
+.aph .aph-topbar .s,.aph .aph-topbar .presets .p,.aph .aph-topbar button,.aph .aph-topbar .seg-btn{white-space:nowrap !important}
+.aph .aph-topbar .cat-wrap,.aph .aph-topbar .presets{flex:0 0 auto}
+.aph .aph-topbar{min-height:60px !important;align-items:center !important}
+.aph .aph-topbar .right{overflow-x:auto;overflow-y:hidden}
 </style>
 <div class="aph">
   <aside class="aph-side">
@@ -457,23 +490,23 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
         Users &amp; Access <span class="badge" id="b-users">·</span>
       </a>
       <a class="nav-item" href="it-workforce"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Workforce</a>
-      <a class="nav-item" id="nav-roles" href="it-dashboard#roles" style="display:none">
+      <a class="nav-item" id="nav-roles" href="it-dashboard#roles">
         <svg class="ic" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 11 2 2 4-4"/></svg>
         Role Manager
       </a>
-      <a class="nav-item" id="nav-profiles" href="it-dashboard#profiles" style="display:none">
+      <a class="nav-item" id="nav-profiles" href="it-dashboard#profiles">
         <svg class="ic" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Role Profiles
       </a>
-      <a class="nav-item" id="nav-rolecaps" href="it-dashboard#rolecaps" style="display:none">
+      <a class="nav-item" id="nav-rolecaps" href="it-dashboard#rolecaps">
         <svg class="ic" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9"/><path d="M16 4l4 4-4 4"/></svg>
         Role Capabilities
       </a>
-      <a class="nav-item" id="nav-workspaces" href="it-dashboard#workspaces" style="display:none">
+      <a class="nav-item" id="nav-workspaces" href="it-dashboard#workspaces">
         <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
         Workspace Access
       </a>
-      <a class="nav-item" id="nav-doctypes" href="it-dashboard#doctypes" style="display:none">
+      <a class="nav-item" id="nav-doctypes" href="it-dashboard#doctypes">
         <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/></svg>
         Doctype Access
       </a>
@@ -500,7 +533,7 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
         <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
         Audit Trail <span class="badge" id="b-audit">·</span>
       </a>
-      <a class="nav-item" id="nav-errors" href="it-dashboard#errors" style="display:none">
+      <a class="nav-item" id="nav-errors" href="it-dashboard#errors">
         <svg class="ic" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         Error Messages
       </a>
