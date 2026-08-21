@@ -1,0 +1,212 @@
+{
+ "app": "role_advisor",
+ "charts": [],
+ "content": "[{\"id\": \"ra_head\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\">Assign access</span>\", \"col\": 12}}, {\"id\": \"ra_sc1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"User Access Console\", \"col\": 3}}, {\"id\": \"ra_sc2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Designation Access Map\", \"col\": 3}}, {\"id\": \"ra_sc3\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Delegated User Admin\", \"col\": 3}}, {\"id\": \"ra_sc4\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Access Assignment Log\", \"col\": 3}}, {\"id\": \"ra_sp1\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"ra_c1\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}, {\"id\": \"ra_c2\", \"type\": \"card\", \"data\": {\"card_name\": \"Configuration\", \"col\": 4}}, {\"id\": \"ra_c3\", \"type\": \"card\", \"data\": {\"card_name\": \"Core Permissions\", \"col\": 4}}]",
+ "creation": "2026-08-21 00:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "users",
+ "idx": 1,
+ "is_hidden": 0,
+ "label": "User Access",
+ "links": [
+  {
+   "label": "Reports",
+   "type": "Card Break",
+   "link_count": 5,
+   "hidden": 0,
+   "is_query_report": 0,
+   "onboard": 0,
+   "description": "Read-only. Nothing here changes access."
+  },
+  {
+   "label": "Designation Gap",
+   "link_to": "Designation Gap",
+   "link_type": "Report",
+   "type": "Link",
+   "is_query_report": 1,
+   "link_count": 0,
+   "hidden": 0,
+   "onboard": 0,
+   "dependencies": "User"
+  },
+  {
+   "label": "Module Exposure",
+   "link_to": "Module Exposure",
+   "link_type": "Report",
+   "type": "Link",
+   "is_query_report": 1,
+   "link_count": 0,
+   "hidden": 0,
+   "onboard": 0,
+   "dependencies": "User"
+  },
+  {
+   "label": "Role Drift",
+   "link_to": "Role Drift",
+   "link_type": "Report",
+   "type": "Link",
+   "is_query_report": 1,
+   "link_count": 0,
+   "hidden": 0,
+   "onboard": 0,
+   "dependencies": "User"
+  },
+  {
+   "label": "System Manager Audit",
+   "link_to": "System Manager Audit",
+   "link_type": "Report",
+   "type": "Link",
+   "is_query_report": 1,
+   "link_count": 0,
+   "hidden": 0,
+   "onboard": 0,
+   "dependencies": "User"
+  },
+  {
+   "label": "Role Profile Overgrant",
+   "link_to": "Role Profile Overgrant",
+   "link_type": "Report",
+   "type": "Link",
+   "is_query_report": 1,
+   "link_count": 0,
+   "hidden": 0,
+   "onboard": 0,
+   "dependencies": "Role Profile"
+  },
+  {
+   "label": "Configuration",
+   "type": "Card Break",
+   "link_count": 3,
+   "hidden": 0,
+   "is_query_report": 0,
+   "onboard": 0,
+   "description": "Every threshold and policy the app reads."
+  },
+  {
+   "label": "User Access Settings",
+   "link_to": "User Access Settings",
+   "link_type": "DocType",
+   "type": "Link",
+   "is_query_report": 0,
+   "link_count": 0,
+   "hidden": 0,
+   "onboard": 1
+  },
+  {
+   "label": "Designation Access Map",
+   "link_to": "Designation Access Map",
+   "link_type": "DocType",
+   "type": "Link",
+   "is_query_report": 0,
+   "link_count": 0,
+   "hidden": 0,
+   "onboard": 1
+  },
+  {
+   "label": "Delegated User Admin",
+   "link_to": "Delegated User Admin",
+   "link_type": "DocType",
+   "type": "Link",
+   "is_query_report": 0,
+   "link_count": 0,
+   "hidden": 0,
+   "onboard": 1
+  },
+  {
+   "label": "Core Permissions",
+   "type": "Card Break",
+   "link_count": 4,
+   "hidden": 0,
+   "is_query_report": 0,
+   "onboard": 0,
+   "description": "Frappe's own records that this app reads but never seeds."
+  },
+  {
+   "label": "Role Profile",
+   "link_to": "Role Profile",
+   "link_type": "DocType",
+   "type": "Link",
+   "is_query_report": 0,
+   "link_count": 0,
+   "hidden": 0,
+   "onboard": 0
+  },
+  {
+   "label": "Module Profile",
+   "link_to": "Module Profile",
+   "link_type": "DocType",
+   "type": "Link",
+   "is_query_report": 0,
+   "link_count": 0,
+   "hidden": 0,
+   "onboard": 0
+  },
+  {
+   "label": "Role",
+   "link_to": "Role",
+   "link_type": "DocType",
+   "type": "Link",
+   "is_query_report": 0,
+   "link_count": 0,
+   "hidden": 0,
+   "onboard": 0
+  },
+  {
+   "label": "User Permission",
+   "link_to": "User Permission",
+   "link_type": "DocType",
+   "type": "Link",
+   "is_query_report": 0,
+   "link_count": 0,
+   "hidden": 0,
+   "onboard": 0
+  }
+ ],
+ "modified": "2026-08-21 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Role Advisor",
+ "name": "User Access",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 1.0,
+ "shortcuts": [
+  {
+   "label": "User Access Console",
+   "link_to": "user-access",
+   "type": "Page",
+   "color": "Blue",
+   "doc_view": ""
+  },
+  {
+   "label": "Designation Access Map",
+   "link_to": "Designation Access Map",
+   "type": "DocType",
+   "color": "Grey",
+   "doc_view": "List",
+   "stats_filter": "{\"is_active\":[\"=\",0]}"
+  },
+  {
+   "label": "Delegated User Admin",
+   "link_to": "Delegated User Admin",
+   "type": "DocType",
+   "color": "Green",
+   "doc_view": "List"
+  },
+  {
+   "label": "Access Assignment Log",
+   "link_to": "Access Assignment Log",
+   "type": "DocType",
+   "color": "Orange",
+   "doc_view": "List"
+  }
+ ],
+ "title": "User Access"
+}

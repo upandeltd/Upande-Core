@@ -46,6 +46,24 @@ A profile that grants write on `User`, `Role`, `Role Profile`, `Module Profile`,
 allowlisted. That check is **computed from the capability index**, not matched on
 role names — a name list rots the moment someone creates `Site Admin Copy`.
 
+### Using it
+
+Everything lives under the **User Access** workspace in the desk.
+
+- **User Access Console** (`/app/user-access`) — the page a delegated
+  administrator works in. Pick a user from the scoped list, pick a profile from
+  your allowlist, preview the exact roles gained and lost, confirm. It is a thin
+  client over `role_advisor.api` and never writes a document directly.
+- Shortcuts to `Designation Access Map` (filtered to inactive rows, which are
+  the ones awaiting a decision), `Delegated User Admin` and
+  `Access Assignment Log`.
+- Cards linking the five reports, the three configuration doctypes, and the core
+  permission records this app reads but never seeds.
+
+The console is visible to every `User Manager`, but the API refuses anyone
+without an enabled `Delegated User Admin` record — so a non-delegate sees a
+plain explanation rather than an error.
+
 ### Reports
 
 `Designation Gap`, `Module Exposure`, `Role Drift`, `System Manager Audit`,
