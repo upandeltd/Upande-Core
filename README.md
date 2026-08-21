@@ -101,6 +101,30 @@ Columns marked `(EDITABLE)` are inert, parked for a future importer.
 > complete permission set for each doctype it touches, not just the module
 > owner's additions, or roles nobody considered will silently lose access.
 
+### Exporting from a remote site
+
+The site holding the real data may not be the site this app runs on — Kaitet's
+production is v15 while the app targets v16, so a local `frappe.get_all` reports
+a stale copy. `live_export` reads a remote site over the REST API instead.
+
+```bash
+export KAITET_HOST=https://kaitet-group.upande.com
+export KAITET_TOKEN=api_key:api_secret
+bench --site <site> execute role_advisor.live_export.run
+```
+
+Writes `~/kaitet-live-users.csv` — **every** user, enabled and disabled, with
+company, branch, department, designation, grade, role profile, module profile,
+role count, user-permission count, permitted companies, admin-role flags and
+`roles_outside_profile` (precisely what v16 prunes on the next save).
+
+Credentials come from the environment and are never read from code or a
+committed file. The output lands outside the repository by default because it is
+PII, and `*.csv` is gitignored.
+
+Works against v15 and v16: `role_profile_name` is the real field on v15 and a
+read-only mirror of `role_profiles[0]` on v16.
+
 ### v16 notes
 
 - `User.role_profile_name` is deprecated; write the `role_profiles` child table.
