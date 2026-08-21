@@ -353,3 +353,106 @@
 .ra-details summary:hover{color:var(--ink)}
 .ra-overlist{margin-top:8px;max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;
   font:400 12px var(--mono);color:var(--ink-4);background:var(--surface);border-radius:11px;padding:12px 14px}
+
+/* ==========================================================================
+ * IT Operations views
+ *
+ * Tables, bars and the hour strip. All CSS - the page this replaced pulled
+ * Chart.js from a CDN to draw two charts, which is a third-party script and a
+ * network dependency for something the browser can already do.
+ * ========================================================================== */
+
+/* The portal page is the shell, so the app root fills it. */
+.ra-dash#ra-app{margin:0;min-height:100vh;background:var(--bg)}
+.ra-mount{min-width:0}
+
+/* Tables */
+.ra-table{width:100%;border-collapse:collapse;font:400 13px var(--sans)}
+.ra-table th{text-align:left;font:500 10px var(--sans);text-transform:uppercase;letter-spacing:1.4px;
+  color:var(--ink-mute);padding:0 10px 9px;border-bottom:1px solid var(--hairline);white-space:nowrap}
+.ra-table td{padding:9px 10px;border-bottom:1px solid var(--hairline);color:var(--ink-3);vertical-align:top}
+.ra-table tbody tr:last-child td{border-bottom:0}
+.ra-table tbody tr:hover{background:rgba(10,10,10,0.02)}
+.ra-table b{font:600 13px var(--sans);color:var(--ink)}
+.ra-table small{font:400 11px var(--sans);color:var(--ink-mute)}
+.ra-table td.num,.ra-table th.num{text-align:right;font-variant-numeric:tabular-nums}
+
+/* Horizontal bars */
+.ra-bars{display:flex;flex-direction:column;gap:9px}
+.ra-bar{display:grid;grid-template-columns:minmax(90px,0.9fr) minmax(0,2fr) auto;gap:12px;align-items:center}
+.ra-bar__name{font:500 12.5px var(--sans);color:var(--ink-3)}
+.ra-bar__lane{height:9px;background:rgba(10,10,10,0.05);border-radius:99px;overflow:hidden}
+.ra-bar__fill{height:100%;border-radius:99px;background:var(--grad-ink);transition:width .35s ease}
+.ra-bar__fill.hi{background:linear-gradient(90deg,#3f8f4f,#5aa86a)}
+.ra-bar__fill.lo{background:linear-gradient(90deg,#c4302b,#d9564f)}
+.ra-bar__val{font:600 12.5px var(--sans);color:var(--ink);font-variant-numeric:tabular-nums;min-width:46px;text-align:right}
+
+/* Twenty-four hour strip: today over yesterday */
+.ra-hours{display:grid;grid-template-columns:repeat(24,1fr);gap:5px;align-items:end;height:190px;padding-top:10px}
+.ra-hour{display:flex;flex-direction:column;align-items:center;gap:6px;height:100%}
+.ra-hour__stack{position:relative;width:100%;height:100%;display:flex;align-items:flex-end}
+.ra-hour__prev,.ra-hour__now{position:absolute;bottom:0;width:100%;border-radius:5px 5px 0 0;transition:height .35s ease}
+.ra-hour__prev{background:rgba(10,10,10,0.09)}
+.ra-hour__now{background:var(--grad-ink);width:56%;left:22%}
+.ra-hour small{font:500 10px var(--mono);color:var(--ink-faint)}
+.ra-hour:hover .ra-hour__now{background:var(--grad-accent)}
+
+/* The rebuilt user picker */
+.ra-pick{display:flex;flex-direction:column;gap:6px;max-width:420px}
+.ra-pick label{font:500 11px var(--sans);text-transform:uppercase;letter-spacing:1.4px;color:var(--ink-mute)}
+.ra-pick .awesomplete{width:100%}
+.ra-pick .awesomplete>ul{border-radius:14px;box-shadow:var(--shadow-hover);border:1px solid var(--hairline);
+  background:var(--surface-2);margin-top:6px;padding:6px;max-height:320px;overflow-y:auto;z-index:60}
+.ra-pick .awesomplete>ul>li{padding:8px 12px;border-radius:9px;font:500 13px var(--sans);color:var(--ink-3)}
+.ra-pick .awesomplete>ul>li:hover,.ra-pick .awesomplete>ul>li[aria-selected="true"]{background:rgba(10,10,10,0.05);color:var(--ink)}
+.ra-pick .awesomplete mark{background:var(--accent-100);color:var(--ink);border-radius:3px}
+
+@media (max-width:1100px){
+  .ra-hours{height:150px;gap:3px}
+  .ra-bar{grid-template-columns:minmax(70px,1fr) minmax(0,1.4fr) auto}
+}
+
+
+/* ==========================================================================
+ * Page shell
+ *
+ * The website template wraps page_content in `main.container`, which caps the
+ * width at 1290px and keeps the site navbar and footer. This page is an
+ * application, so it takes the viewport: access.js puts `ra-portal` on <body>
+ * at boot, and these rules are scoped to it so no other portal page is touched.
+ * ========================================================================== */
+body.ra-portal .navbar,
+body.ra-portal footer,
+body.ra-portal .page-footer,
+body.ra-portal .website-footer,
+body.ra-portal .breadcrumb-container{display:none!important}
+body.ra-portal main.container,
+body.ra-portal .page-content-wrapper,
+body.ra-portal .page_content{max-width:none!important;width:100%!important;padding:0!important;margin:0!important}
+body.ra-portal{margin:0;background:var(--bg,#f4f3ef)}
+
+/* Topbar */
+.ra-top{position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between;gap:20px;
+  padding:14px 32px;background:rgba(250,250,246,0.86);backdrop-filter:saturate(180%) blur(14px);
+  border-bottom:1px solid var(--hairline)}
+.ra-brand{display:inline-flex;align-items:center;gap:12px;text-decoration:none}
+.ra-brand img{border-radius:10px;display:block}
+.ra-brand span{display:flex;flex-direction:column;line-height:1.15}
+.ra-brand b{font:600 16px var(--sans);color:var(--ink);letter-spacing:-0.3px}
+.ra-brand small{font:500 11px var(--sans);color:var(--ink-mute);text-transform:uppercase;letter-spacing:1.4px}
+.ra-top__right{display:flex;align-items:center;gap:10px}
+.ra-topbtn{display:inline-flex;align-items:center;gap:7px;border:0;background:var(--surface-2);border-radius:999px;
+  padding:8px 15px;font:500 12px var(--sans);color:var(--ink-3);cursor:pointer;text-decoration:none;
+  box-shadow:var(--shadow-card);transition:all .2s}
+.ra-topbtn:hover{color:var(--ink);transform:translateY(-1px)}
+.ra-topbtn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+.ra-whoami{display:inline-flex;align-items:center;gap:9px;padding-left:6px}
+/* The sidebar defines this too; the topbar ships with its own copy so the
+   self-service page, which has no sidebar, is not missing it. */
+.ra-top .ra-avatar{width:30px;height:30px;border-radius:50%;background:var(--grad-ink,linear-gradient(135deg,#0a0a0a,#3a3a34));
+  color:#fafaf6;display:grid;place-items:center;font:600 11px var(--sans);flex-shrink:0}
+.ra-whoami span{font:500 12.5px var(--sans);color:var(--ink-3)}
+@media (max-width:900px){
+  .ra-top{padding:12px 18px}
+  .ra-whoami span,.ra-topbtn span{display:none}
+}

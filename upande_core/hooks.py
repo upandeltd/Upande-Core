@@ -9,6 +9,18 @@ app_license = "mit"
 # ------------------------
 after_migrate = "upande_core.install.after_migrate"
 
+# The IT dashboard is one page now. The three portal pages that used to hold
+# System Activity, Workforce and Monitor Config are views inside it, so their
+# old routes - which are in bookmarks and in the desk workspace - land there.
+website_redirects = [
+	{"source": "/it-operations", "target": "/it-dashboard#activity"},
+	{"source": "/it-workforce", "target": "/it-dashboard#workforce"},
+	{"source": "/it-operations-admin", "target": "/it-dashboard#monitor"},
+	{"source": "/role-advisor", "target": "/it-dashboard"},
+	{"source": "/access", "target": "/it-dashboard"},
+]
+
+
 # Document Events
 # ---------------
 doc_events = {
