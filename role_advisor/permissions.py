@@ -16,7 +16,7 @@ see every company's data.
 
 import frappe
 
-from role_advisor import delegation
+from role_advisor import delegation, settings
 
 # Rights that let a delegate alter their own boundary. `read` is included:
 # harmless in itself, but a readable row invites a UI that offers delete.
@@ -154,3 +154,25 @@ def delegated_admin_has_permission(
 		return False
 
 	return (ptype or "read") == "read"
+
+
+# ---------------------------------------------------------------------------
+# The apps screen
+# ---------------------------------------------------------------------------
+
+
+def has_app_permission() -> bool:
+	"""Should Role Advisor show on this user's /apps screen?
+
+	Anyone who can administer access, plus anyone who is a delegate on paper
+	even if their record is currently disabled - hiding the app from someone
+	mid-rollout reads as the app being broken. Everyone else reaches their own
+	access through `/my-access`, which needs no role at all.
+	"""
+	roles = frappe.get_roles()
+	if "System Manager" in roles or settings.delegate_role() in roles:
+		return True
+
+	return bool(
+		frappe.db.exists("Delegated User Admin", {"user": frappe.session.user})
+	)

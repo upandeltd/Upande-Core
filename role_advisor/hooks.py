@@ -10,22 +10,37 @@ app_license = "mit"
 
 # required_apps = []
 
-# Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "role_advisor",
-# 		"logo": "/assets/role_advisor/logo.png",
-# 		"title": "Role Advisor",
-# 		"route": "/role_advisor",
-# 		"has_permission": "role_advisor.api.permission.has_app_permission"
-# 	}
-# ]
+# Role Advisor is its own app on the /apps screen, not a workspace someone has
+# to know to look for. The route is a desk route because the page needs
+# `frappe.ui.form.make_control` for its scoped Link pickers and `frappe.confirm`
+# for its writes - a website page gets neither. The desk chrome is hidden once
+# the page loads, so what the route serves does not look like the desk.
+add_to_apps_screen = [
+	{
+		"name": "role_advisor",
+		"logo": "/assets/role_advisor/images/role-advisor-logo.svg",
+		"title": "Role Advisor",
+		"route": "/desk/access-dashboard",
+		"has_permission": "role_advisor.permissions.has_app_permission",
+	}
+]
+
+# `/role-advisor` is the address to give someone. It lands on the same page.
+website_redirects = [
+	{"source": "/role-advisor", "target": "/desk/access-dashboard"},
+	{"source": "/role_advisor", "target": "/desk/access-dashboard"},
+	{"source": "/my-access", "target": "/desk/my-access"},
+]
 
 # Includes in <head>
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/role_advisor/css/role_advisor.css"
+#
+# Inert without `body.ra-standalone`, which only this app's own pages set. It
+# has to be global because two pages need it and a page bundle only loads with
+# its own page.
+app_include_css = "/assets/role_advisor/css/standalone.css"
 # app_include_js = "/assets/role_advisor/js/role_advisor.js"
 
 # include js, css files in header of web template
@@ -148,20 +163,48 @@ after_install = "role_advisor.install.after_install"
 # index wrong, so invalidate it at the source rather than waiting out the TTL.
 doc_events = {
 	"Role Profile": {
-		"on_update": "role_advisor.capability.on_permission_source_change",
-		"after_delete": "role_advisor.capability.on_permission_source_change",
+		"on_update": [
+			"role_advisor.capability.on_permission_source_change",
+			"role_advisor.anomalies.clear_cache",
+		],
+		"after_delete": [
+			"role_advisor.capability.on_permission_source_change",
+			"role_advisor.anomalies.clear_cache",
+		],
 	},
 	"Custom DocPerm": {
-		"on_update": "role_advisor.capability.on_permission_source_change",
-		"after_delete": "role_advisor.capability.on_permission_source_change",
+		"on_update": [
+			"role_advisor.capability.on_permission_source_change",
+			"role_advisor.anomalies.clear_cache",
+		],
+		"after_delete": [
+			"role_advisor.capability.on_permission_source_change",
+			"role_advisor.anomalies.clear_cache",
+		],
 	},
 	"DocPerm": {
-		"on_update": "role_advisor.capability.on_permission_source_change",
-		"after_delete": "role_advisor.capability.on_permission_source_change",
+		"on_update": [
+			"role_advisor.capability.on_permission_source_change",
+			"role_advisor.anomalies.clear_cache",
+		],
+		"after_delete": [
+			"role_advisor.capability.on_permission_source_change",
+			"role_advisor.anomalies.clear_cache",
+		],
 	},
 	"Delegated User Admin": {
 		"on_update": "role_advisor.delegation.clear_cache",
 		"after_delete": "role_advisor.delegation.clear_cache",
+	},
+	# The anomaly scan reads assignments as well as permissions, so it goes
+	# stale on a User save that no permission hook would notice.
+	"User": {
+		"on_update": "role_advisor.anomalies.clear_cache",
+		"after_delete": "role_advisor.anomalies.clear_cache",
+	},
+	"Designation Access Map": {
+		"on_update": "role_advisor.anomalies.clear_cache",
+		"after_delete": "role_advisor.anomalies.clear_cache",
 	},
 }
 

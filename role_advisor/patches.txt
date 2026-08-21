@@ -1,3 +1,4 @@
 [pre_model_sync]
 
 [post_model_sync]
+role_advisor.patches.v1_1.clear_user_access_workspace

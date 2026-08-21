@@ -19,6 +19,28 @@ frappe.pages["my-access"].on_page_load = function (wrapper) {
 	new MyAccess(page);
 };
 
+frappe.pages["my-access"].on_page_show = function () {
+	standalone(true);
+};
+
+/* Both Role Advisor pages wear the app's own chrome rather than the desk's -
+ * see the same function in access_dashboard.js. The class has to come off again
+ * on the way out, or every other desk page is served with no sidebar.
+ */
+const RA_ROUTES = ["access-dashboard", "my-access"];
+let watching_route = false;
+
+function standalone(on) {
+	$("body").toggleClass("ra-standalone", !!on);
+
+	if (!on || watching_route) return;
+	watching_route = true;
+	frappe.router.on("change", () => {
+		const route = frappe.get_route() || [];
+		$("body").toggleClass("ra-standalone", RA_ROUTES.includes(route[0]));
+	});
+}
+
 const sesc = (value) => frappe.utils.escape_html(String(value == null ? "" : value));
 const snum = (value) => Number(value || 0).toLocaleString();
 
@@ -32,6 +54,24 @@ class MyAccess {
 
 	render() {
 		this.page.main.html(`
+			<header class="ra-top">
+				<a class="ra-brand" href="/desk/my-access" title="${__("My Access")}">
+					<img src="/assets/role_advisor/images/role-advisor-logo.svg" alt="" width="34" height="34">
+					<span>
+						<b>${__("Role Advisor")}</b>
+						<small>${__("your access")}</small>
+					</span>
+				</a>
+				<div class="ra-top__right">
+					<a class="ra-topbtn" href="/desk">${__("Desk")}</a>
+					<div class="ra-whoami">
+						<div class="ra-avatar">${sesc(
+							(frappe.session.user_fullname || "?").slice(0, 2).toUpperCase()
+						)}</div>
+						<span>${sesc(frappe.session.user_fullname || frappe.session.user)}</span>
+					</div>
+				</div>
+			</header>
 			<div class="ra-self__page">
 				<div class="ra-self__head">
 					<div class="ra-self__eyebrow">${__("Role Advisor")}</div>
@@ -84,6 +124,10 @@ class MyAccess {
 			<div class="hint">${
 				me.profiles.length
 					? __("Your access level is {0}.", [`<b>${sesc(me.profiles.join(", "))}</b>`])
+					: me.unrestricted
+					? __(
+							"You hold <b>System Manager</b>, so nothing restricts you. The counts below only describe what a role profile would grant — you have none, and do not need one."
+					  )
 					: __("You have no access level set — which is why you may be unable to do very much.")
 			}</div>
 			<div class="stats">

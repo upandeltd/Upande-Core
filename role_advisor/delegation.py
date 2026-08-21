@@ -138,3 +138,54 @@ def assert_can_grant(admin, role_profile: str, module_profile: str | None = None
 				frappe.PermissionError,
 				title=_("Not Grantable"),
 			)
+
+
+# ---------------------------------------------------------------------------
+# Acting as an administrator
+#
+# Everything above bounds a *delegate*. A System Manager is not bounded: they
+# already hold write on `User`, `Role`, `Role Profile` and `Custom DocPerm`, so
+# refusing them here would buy no safety and would leave the person who
+# configures delegation unable to use the tool they configure. Routing them
+# through the same functions is a net gain - their change gets an Access
+# Assignment Log row, which the desk form does not write.
+# ---------------------------------------------------------------------------
+
+
+def acting_admin(user: str | None = None):
+	"""The record bounding the caller, or None when the caller is unbounded.
+
+	None means "no scope, no allowlist" - it does not mean "no checks": the
+	reserved-user rule below still applies, and every write is still logged.
+	"""
+	if "System Manager" in frappe.get_roles(user or frappe.session.user):
+		return None
+
+	return assert_delegate(user)
+
+
+def assert_target(admin, target: str) -> None:
+	"""May the caller act on this user at all?
+
+	Administrator and Guest are refused for everyone. Assigning a role profile
+	replaces the holder's roles, so pointing this at Administrator would prune
+	the only account guaranteed to be able to undo it.
+	"""
+	if not target:
+		frappe.throw(_("Choose a user first."), frappe.ValidationError)
+
+	if target in RESERVED_USERS:
+		frappe.throw(
+			_("{0} cannot be assigned a role profile.").format(target),
+			frappe.PermissionError,
+			title=_("Reserved Account"),
+		)
+
+	if admin:
+		assert_can_manage(admin, target)
+
+
+def assert_grant(admin, role_profile: str, module_profile: str | None = None) -> None:
+	"""Enforce the allowlist and the privilege denylist, for a delegate only."""
+	if admin:
+		assert_can_grant(admin, role_profile, module_profile)

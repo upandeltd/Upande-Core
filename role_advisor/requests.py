@@ -351,7 +351,6 @@ def submit_request(user: str, requirements, reason: str = "") -> dict:
 	doc.resolution_notes = verdict.get("notes")
 	doc.status = "Resolved" if verdict.get("profile") else "Open"
 	doc.insert(ignore_permissions=True)
-	frappe.db.commit()
 
 	return {"request": doc.name, **verdict}
 
@@ -378,7 +377,6 @@ def fulfil(request: str) -> dict:
 	doc.assignment_log = result["log"]
 	doc.status = "Fulfilled"
 	doc.save(ignore_permissions=True)
-	frappe.db.commit()
 
 	return {"request": doc.name, **result}
 
@@ -506,6 +504,11 @@ def my_access() -> dict:
 		"is_administrator": bool(
 			{"System Manager", settings.delegate_role()} & set(frappe.get_roles())
 		),
+		# System Manager is not granted through a role profile, so the counts
+		# above read as zero for someone who can in fact do everything. Saying
+		# "you have no access" to a System Manager is the one answer this page
+		# must never give.
+		"unrestricted": "System Manager" in frappe.get_roles(),
 	}
 
 
@@ -538,7 +541,6 @@ def refuse(request: str, note: str = "") -> dict:
 	doc.status = "Refused"
 	doc.resolution_notes = (note or "").strip() or _("Refused without a note.")
 	doc.save(ignore_permissions=True)
-	frappe.db.commit()
 
 	return {"request": doc.name, "status": doc.status}
 
@@ -566,6 +568,5 @@ def recheck(request: str) -> dict:
 	if doc.status != "Fulfilled":
 		doc.status = "Resolved" if verdict.get("profile") else "Open"
 	doc.save(ignore_permissions=True)
-	frappe.db.commit()
 
 	return {"request": doc.name, **verdict}

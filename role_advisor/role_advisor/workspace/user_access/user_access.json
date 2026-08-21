@@ -1,7 +1,7 @@
 {
  "app": "role_advisor",
  "charts": [],
- "content": "[{\"id\": \"ra_head\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\">Assign access</span>\", \"col\": 12}}, {\"id\": \"ra_sc0\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Access Dashboard\", \"col\": 3}}, {\"id\": \"ra_sc1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"User Access Console\", \"col\": 4}}, {\"id\": \"ra_sc2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Designation Access Map\", \"col\": 5}}, {\"id\": \"ra_sc3\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Delegated User Admin\", \"col\": 5}}, {\"id\": \"ra_sc5\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"My Access\", \"col\": 3}}, {\"id\": \"ra_sc4\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Access Assignment Log\", \"col\": 5}}, {\"id\": \"ra_sp1\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"ra_c1\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}, {\"id\": \"ra_c2\", \"type\": \"card\", \"data\": {\"card_name\": \"Configuration\", \"col\": 4}}, {\"id\": \"ra_c3\", \"type\": \"card\", \"data\": {\"card_name\": \"Core Permissions\", \"col\": 4}}]",
+ "content": "[{\"id\": \"ra_head\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\">Role Advisor</span>\", \"col\": 12}}, {\"id\": \"ra_para\", \"type\": \"paragraph\", \"data\": {\"text\": \"Users, role profiles, anomalies, requests and the audit trail all live inside the app. Open it below, or go straight to <b>/role-advisor</b>.\", \"col\": 12}}, {\"id\": \"ra_open\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Role Advisor\", \"col\": 4}}]",
  "creation": "2026-08-21 00:00:00",
  "custom_blocks": [],
  "docstatus": 0,
@@ -12,160 +12,7 @@
  "idx": 1,
  "is_hidden": 0,
  "label": "User Access",
- "links": [
-  {
-   "description": "Read-only. Nothing here changes access.",
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Reports",
-   "link_count": 5,
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "dependencies": "User",
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "Designation Gap",
-   "link_count": 0,
-   "link_to": "Designation Gap",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "dependencies": "User",
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "Module Exposure",
-   "link_count": 0,
-   "link_to": "Module Exposure",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "dependencies": "User",
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "Role Drift",
-   "link_count": 0,
-   "link_to": "Role Drift",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "dependencies": "User",
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "System Manager Audit",
-   "link_count": 0,
-   "link_to": "System Manager Audit",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "dependencies": "Role Profile",
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "Role Profile Overgrant",
-   "link_count": 0,
-   "link_to": "Role Profile Overgrant",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "description": "Every threshold and policy the app reads.",
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Configuration",
-   "link_count": 3,
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "User Access Settings",
-   "link_count": 0,
-   "link_to": "User Access Settings",
-   "link_type": "DocType",
-   "onboard": 1,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Designation Access Map",
-   "link_count": 0,
-   "link_to": "Designation Access Map",
-   "link_type": "DocType",
-   "onboard": 1,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Delegated User Admin",
-   "link_count": 0,
-   "link_to": "Delegated User Admin",
-   "link_type": "DocType",
-   "onboard": 1,
-   "type": "Link"
-  },
-  {
-   "description": "Frappe's own records that this app reads but never seeds.",
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Core Permissions",
-   "link_count": 4,
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Role Profile",
-   "link_count": 0,
-   "link_to": "Role Profile",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Module Profile",
-   "link_count": 0,
-   "link_to": "Module Profile",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Role",
-   "link_count": 0,
-   "link_to": "Role",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "User Permission",
-   "link_count": 0,
-   "link_to": "User Permission",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  }
- ],
+ "links": [],
  "modified": "2026-08-21 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "Role Advisor",
@@ -186,47 +33,11 @@
  "sequence_id": 1.0,
  "shortcuts": [
   {
-   "label": "Access Dashboard",
-   "link_to": "access-dashboard",
-   "type": "Page",
    "color": "Grey",
-   "doc_view": ""
-  },
-  {
-   "color": "Blue",
    "doc_view": "",
-   "label": "User Access Console",
-   "link_to": "assign-access",
+   "label": "Role Advisor",
+   "link_to": "access-dashboard",
    "type": "Page"
-  },
-  {
-   "color": "Grey",
-   "doc_view": "List",
-   "label": "Designation Access Map",
-   "link_to": "Designation Access Map",
-   "stats_filter": "{\"is_active\":[\"=\",0]}",
-   "type": "DocType"
-  },
-  {
-   "color": "Green",
-   "doc_view": "List",
-   "label": "Delegated User Admin",
-   "link_to": "Delegated User Admin",
-   "type": "DocType"
-  },
-  {
-   "color": "Orange",
-   "doc_view": "List",
-   "label": "Access Assignment Log",
-   "link_to": "Access Assignment Log",
-   "type": "DocType"
-  },
-  {
-   "label": "My Access",
-   "link_to": "my-access",
-   "type": "Page",
-   "color": "Green",
-   "doc_view": ""
   }
  ],
  "title": "User Access",

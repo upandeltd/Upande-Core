@@ -14,15 +14,45 @@
 frappe.pages["access-dashboard"].on_page_load = function (wrapper) {
 	const page = frappe.ui.make_app_page({
 		parent: wrapper,
-		title: __("Access Dashboard"),
+		title: __("Role Advisor"),
 		single_column: true,
 	});
 	page.main.addClass("ra-dash");
-	new AccessDashboard(page);
+	frappe.pages["access-dashboard"].instance = new AccessDashboard(page);
 };
+
+frappe.pages["access-dashboard"].on_page_show = function () {
+	standalone(true);
+};
+
+/* Role Advisor is an app, not a desk page dressed up as one. The route is a
+ * desk route because the page needs frappe.ui.form.make_control for its scoped
+ * Link pickers and frappe.confirm for its writes - neither exists on a website
+ * page - but nothing about the desk should be visible once it loads. The desk
+ * navbar, breadcrumb and sidebar come off, and this page's own topbar and
+ * sidebar are the only navigation.
+ *
+ * The class has to come off again on the way out: leaving it on would serve
+ * every other desk page with no sidebar, which looks exactly like a broken
+ * desk.
+ */
+const RA_ROUTES = ["access-dashboard", "my-access"];
+let watching_route = false;
+
+function standalone(on) {
+	$("body").toggleClass("ra-standalone", !!on);
+
+	if (!on || watching_route) return;
+	watching_route = true;
+	frappe.router.on("change", () => {
+		const route = frappe.get_route() || [];
+		$("body").toggleClass("ra-standalone", RA_ROUTES.includes(route[0]));
+	});
+}
 
 const VIEWS = [
 	{ id: "overview", label: "Overview", icon: "grid" },
+	{ id: "anomalies", label: "Anomalies", icon: "alert" },
 	{ id: "users", label: "Users", icon: "users", count: "enabled" },
 	{ id: "profiles", label: "Role Profiles", icon: "layers", count: "profiles" },
 	{ id: "modules", label: "Modules", icon: "box", count: "modules" },
@@ -49,6 +79,10 @@ const ICONS = {
 	inbox: '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
 	search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
 	shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+	alert: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+	desk: '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
+	out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
+	sliders: '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
 	refresh: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
 };
 
@@ -61,7 +95,9 @@ class AccessDashboard {
 		this.page = page;
 		this.view = (frappe.get_route() || [])[1] || "overview";
 		this.cache = {};
-		this.assign = { user: null, profile: null, preview: null };
+		// Grant state survives a view switch so a half-built selection is not
+		// lost by glancing at the anomalies list.
+		this.grant = { user: null, needs: [], module: null, mode: "needs" };
 		this.render_shell();
 		this.load();
 	}
@@ -70,6 +106,27 @@ class AccessDashboard {
 
 	render_shell() {
 		this.page.main.html(`
+			<header class="ra-top">
+				<a class="ra-brand" href="/apps" title="${__("All apps")}">
+					<img src="/assets/role_advisor/images/role-advisor-logo.svg" alt="" width="34" height="34">
+					<span>
+						<b>${__("Role Advisor")}</b>
+						<small>${esc(frappe.boot.sysdefaults?.company || frappe.boot.sitename || "")}</small>
+					</span>
+				</a>
+				<div class="ra-top__right">
+					<button class="ra-topbtn ra-rescan" title="${__("Re-count everything")}">
+						<svg viewBox="0 0 24 24">${ICONS.refresh}</svg>${__("Re-count")}
+					</button>
+					<a class="ra-topbtn" href="/desk" title="${__("Back to the desk")}">
+						<svg viewBox="0 0 24 24">${ICONS.desk}</svg>${__("Desk")}
+					</a>
+					<div class="ra-whoami">
+						<div class="ra-avatar">${esc((frappe.session.user_fullname || "?").slice(0, 2).toUpperCase())}</div>
+						<span>${esc(frappe.session.user_fullname || frappe.session.user)}</span>
+					</div>
+				</div>
+			</header>
 			<div class="ra-page">
 				<aside class="ra-side">
 					<div>
@@ -107,6 +164,15 @@ class AccessDashboard {
 							</a>
 						</nav>
 					</div>
+					<div>
+						<div class="ra-side__label">${__("Elsewhere")}</div>
+						<nav class="ra-nav">
+							<a class="ra-todesk">
+								<svg viewBox="0 0 24 24">${ICONS.out}</svg>
+								${__("Frappe desk")}
+							</a>
+						</nav>
+					</div>
 					<div class="ra-side__user">
 						<div class="ra-avatar">${esc((frappe.session.user_fullname || "?").slice(0, 2).toUpperCase())}</div>
 						<div>
@@ -130,6 +196,21 @@ class AccessDashboard {
 		// Administrators are users too: the self-service page is where they see
 		// their own access rather than the estate's.
 		this.page.main.find(".ra-tomine").on("click", () => frappe.set_route("my-access"));
+
+		// Hiding the desk chrome removes the only way out, so the way out is
+		// put back explicitly - in the sidebar and in the topbar.
+		this.page.main.find(".ra-todesk").on("click", () => {
+			standalone(false);
+			frappe.set_route("workspace", "Home");
+		});
+
+		this.page.main.find(".ra-rescan").on("click", () => {
+			this.cache = {};
+			frappe.show_alert({ message: __("Re-counting from the database…"), indicator: "blue" });
+			frappe
+				.xcall("role_advisor.anomalies.overview", { force: 1 })
+				.then(() => this.load());
+		});
 	}
 
 	go(view) {
@@ -522,6 +603,223 @@ class AccessDashboard {
 		return this.cache[key];
 	}
 
+	// ------------------------------------------------------------ anomalies
+
+	async view_anomalies() {
+		this.$main.html(`
+			${this.head(
+				__("Anomalies & Discrepancies"),
+				__(
+					"An anomaly is a grant that is wrong on its own terms. A discrepancy is a grant that disagrees with something else that is also true — the same job held differently, roles a profile does not account for, an account that contradicts policy."
+				),
+				`<div class="ra-pillgroup ra-anomfilter">
+					<button data-filter="all" class="on">${__("Everything")}</button>
+					<button data-filter="discrepancy">${__("Discrepancies")}</button>
+					<button data-filter="high">${__("High only")}</button>
+				</div>`
+			)}
+			<div class="ra-kpis ra-anomkpis"></div>
+			<div class="ra-anomlist"><div class="ra-empty"><span class="ra-spinner"></span> ${__(
+				"Reading every user, profile and permission row…"
+			)}</div></div>
+		`);
+
+		let data;
+		try {
+			data = await this.fetch("anomalies", "role_advisor.anomalies.overview");
+		} catch (error) {
+			this.$main.find(".ra-anomlist").html(`<div class="ra-card"><div class="ra-empty">${esc(
+				error.message
+			)}</div></div>`);
+			return;
+		}
+
+		const c = data.counts;
+		this.$main.find(".ra-anomkpis").html(
+			[
+				{
+					label: __("Discrepancies"),
+					value: c.discrepancies,
+					unit: __("a grant that contradicts another fact"),
+					tag: c.discrepancies ? "bad" : "good",
+					note: c.discrepancies ? __("start here") : __("nothing contradicts"),
+				},
+				{
+					label: __("People affected"),
+					value: c.people,
+					unit: __("named in at least one discrepancy"),
+					tag: c.people ? "warn" : "good",
+					note: c.people ? __("each needs a decision") : __("nobody"),
+				},
+				{
+					label: __("High severity"),
+					value: c.high,
+					unit: __("someone can do more than they should"),
+					tag: c.high ? "bad" : "good",
+					note: c.high ? __("act on these") : __("clear"),
+				},
+				{
+					label: __("Everything else"),
+					value: c.moderate + c.low,
+					unit: __("{0} moderate · {1} low", [num(c.moderate), num(c.low)]),
+					tag: "flat",
+					note: __("tidy-up, not risk"),
+				},
+			]
+				.map(
+					(kpi) => `
+				<div class="ra-kpi">
+					<div class="ra-kpi__label">${kpi.label}</div>
+					<div class="ra-kpi__value">${num(kpi.value)}</div>
+					<div class="ra-kpi__unit">${kpi.unit}</div>
+					<div class="ra-tag ${kpi.tag}">${kpi.note}</div>
+				</div>`
+				)
+				.join("")
+		);
+
+		this.anomalies = data.anomalies;
+		this.anom_filter = "all";
+		this.render_anomalies();
+
+		this.$main.find(".ra-anomfilter button").on("click", (event) => {
+			const $button = $(event.currentTarget);
+			this.$main.find(".ra-anomfilter button").removeClass("on");
+			$button.addClass("on");
+			this.anom_filter = $button.data("filter");
+			this.render_anomalies();
+		});
+
+		// The sidebar badge is only known once the scan has run, so it is filled
+		// here rather than being counted a second time in summary().
+		this.page.main
+			.find('.ra-nav a[data-view="anomalies"]')
+			.append(`<span class="n">${num(data.anomalies.length)}</span>`)
+			.find(".n:not(:last)")
+			.remove();
+	}
+
+	render_anomalies() {
+		const rows = (this.anomalies || []).filter((row) =>
+			this.anom_filter === "discrepancy"
+				? row.discrepancy
+				: this.anom_filter === "high"
+				? row.severity === "high"
+				: true
+		);
+
+		if (!rows.length) {
+			this.$main.find(".ra-anomlist").html(
+				`<div class="ra-card"><div class="ra-empty">${__("Nothing in this category.")}</div></div>`
+			);
+			return;
+		}
+
+		this.$main.find(".ra-anomlist").html(
+			rows
+				.map(
+					(row) => `
+			<div class="ra-anom ${row.severity}">
+				<div class="ra-anom__head">
+					<div>
+						<div class="ra-anom__title">
+							${esc(row.title)}
+							<span class="ra-badge ${row.discrepancy ? "disc" : "anom"}">${
+								row.discrepancy ? __("discrepancy") : __("anomaly")
+							}</span>
+						</div>
+						<p class="ra-anom__detail">${esc(row.detail)}</p>
+					</div>
+					<div class="ra-anom__count">${num(row.count)}<small>${__("affected")}</small></div>
+				</div>
+				<div class="ra-anom__rows">
+					${row.rows
+						.map(
+							(entry) => `
+						<div class="ra-anom__row${entry.users && entry.users.length === 1 ? " clickable" : ""}"
+							${entry.users && entry.users.length === 1 ? `data-user="${esc(entry.users[0])}"` : ""}
+							${entry.profile ? `data-profile="${esc(entry.profile)}"` : ""}>
+							<b class="ra-ellipsis" title="${esc(entry.label)}">${esc(entry.label)}</b>
+							<span class="ra-ellipsis" title="${esc(entry.meta || "")}">${esc(entry.meta || "")}</span>
+							<i class="ra-ellipsis" title="${esc(entry.extra || "")}">${esc(entry.extra || "")}</i>
+						</div>`
+						)
+						.join("")}
+					${
+						row.truncated
+							? `<button class="ra-btn ghost sm ra-anommore" data-kind="${esc(row.kind)}">${__(
+									"Show the other {0}",
+									[num(row.truncated)]
+							  )}</button>`
+							: ""
+					}
+				</div>
+				${row.fix ? `<div class="ra-anom__fix">${esc(row.fix)}</div>` : ""}
+			</div>`
+				)
+				.join("")
+		);
+
+		this.$main.find(".ra-anom__row[data-user]").on("click", (event) =>
+			this.open_user($(event.currentTarget).data("user"))
+		);
+		this.$main.find(".ra-anom__row[data-profile]:not([data-user])").on("click", (event) =>
+			this.open_profile($(event.currentTarget).data("profile"))
+		);
+		this.$main.find(".ra-anommore").on("click", (event) => {
+			event.stopPropagation();
+			this.open_anomaly($(event.currentTarget).data("kind"));
+		});
+	}
+
+	async open_anomaly(kind) {
+		if (!kind) return;
+		const { $drawer } = this.loading_drawer(__("Anomaly"));
+
+		let d;
+		try {
+			d = await frappe.xcall("role_advisor.anomalies.detail", { kind });
+		} catch (error) {
+			$drawer.find(".ra-drawer__body").html(`<div class="ra-empty">${esc(error.message)}</div>`);
+			return;
+		}
+
+		$drawer.find("h2").text(d.title);
+		$drawer
+			.find("small")
+			.text(
+				`${d.discrepancy ? __("discrepancy") : __("anomaly")} · ${__("{0} rows", [
+					num(d.rows.length),
+				])}`
+			);
+		$drawer.find(".ra-drawer__body").html(`
+			<div class="ra-card ra-sect">
+				<p class="ra-sub" style="margin:0">${esc(d.detail)}</p>
+				${d.fix ? `<div class="ra-anom__fix" style="margin-top:14px">${esc(d.fix)}</div>` : ""}
+			</div>
+			<div class="ra-card ra-sect">
+				<b>${__("Every row")}</b>
+				<div class="ra-anom__rows" style="margin-top:12px">
+					${d.rows
+						.map(
+							(entry) => `
+						<div class="ra-anom__row${entry.users && entry.users.length === 1 ? " clickable" : ""}"
+							${entry.users && entry.users.length === 1 ? `data-user="${esc(entry.users[0])}"` : ""}>
+							<b class="ra-ellipsis" title="${esc(entry.label)}">${esc(entry.label)}</b>
+							<span class="ra-ellipsis" title="${esc(entry.meta || "")}">${esc(entry.meta || "")}</span>
+							<i class="ra-ellipsis" title="${esc(entry.extra || "")}">${esc(entry.extra || "")}</i>
+						</div>`
+						)
+						.join("")}
+				</div>
+			</div>
+		`);
+
+		$drawer.find(".ra-anom__row[data-user]").on("click", (event) =>
+			this.open_user($(event.currentTarget).data("user"))
+		);
+	}
+
 	// ------------------------------------------------------------- overview
 
 	async view_overview() {
@@ -608,7 +906,10 @@ class AccessDashboard {
 			</div>
 			<div class="ra-row2">
 				<div class="ra-card">
-					<div class="ra-card__head"><h3>${__("Needs a decision")}</h3><div class="ra-meta">${__("worst first")}</div></div>
+					<div class="ra-card__head">
+						<h3>${__("Needs a decision")}</h3>
+						<button class="ra-btn ghost sm" data-go="anomalies">${__("All anomalies")}</button>
+					</div>
 					<div class="ra-findings"><div class="ra-empty"><span class="ra-spinner"></span></div></div>
 				</div>
 				<div class="ra-card">
@@ -656,13 +957,20 @@ class AccessDashboard {
 				? finds
 						.map(
 							(find) => `
-					<div class="ra-find ${find.severity}">
+					<div class="ra-find ${find.severity} clickable" data-kind="${esc(find.kind)}">
 						<i></i>
-						<div><b>${esc(find.title)}</b><p>${esc(find.detail)}</p></div>
+						<div>
+							<b>${esc(find.title)}</b>
+							${find.discrepancy ? `<span class="ra-badge disc">${__("discrepancy")}</span>` : ""}
+							<p>${esc(find.detail)}</p>
+						</div>
 					</div>`
 						)
 						.join("")
 				: `<div class="ra-empty">${__("Nothing outstanding.")}</div>`
+		);
+		this.$main.find(".ra-findings .ra-find").on("click", (event) =>
+			this.open_anomaly($(event.currentTarget).data("kind"))
 		);
 
 		this.$main.find(".ra-topprofiles").html(
@@ -964,48 +1272,64 @@ class AccessDashboard {
 
 	// --------------------------------------------------------------- assign
 
+	// --------------------------------------------------------------- assign
+	//
+	// Frappe is role-based: a role carries permission rows, a permission row
+	// grants rights on a doctype, and nothing else decides whether an action is
+	// allowed. So the question this view asks is the one the model can actually
+	// answer - which documents must this person work with, and what must they do
+	// to them - and derives the profile from the answer.
+	//
+	// The alternative, asking an administrator to pick a profile out of ninety-
+	// two by name, is how people end up holding Accounts because it was next to
+	// Agriculture in the list.
+
 	async view_assign() {
+		this.grant = this.grant || { user: null, needs: [], module: null, mode: "needs" };
+
 		this.$main.html(`
 			${this.head(
-				__("Assign Access"),
-				__("Pick a person, see exactly what changes, then confirm — nothing is written before you do")
+				__("Grant Access"),
+				__(
+					"Name what the person has to be able to do. The profile that covers it — and nothing more than it — is worked out from the live permission rows."
+				),
+				`<div class="ra-pillgroup ra-grantmode">
+					<button data-mode="needs" class="${this.grant.mode === "needs" ? "on" : ""}">${__(
+						"By what they do"
+					)}</button>
+					<button data-mode="profile" class="${this.grant.mode === "profile" ? "on" : ""}">${__(
+						"By profile"
+					)}</button>
+				</div>`
 			)}
-			<div class="ra-row2eq">
-				<div class="ra-card">
-					<div class="ra-card__head"><h3>${__("1 · Who")}</h3><div class="ra-meta ra-scopenote"></div></div>
+			<div class="ra-card">
+				<div class="ra-card__head">
+					<h3>${__("1 · Who")}</h3>
+					<div class="ra-meta ra-scopenote"></div>
+				</div>
+				<div class="ra-whorow">
 					<div class="ra-userpick"></div>
-					<div class="ra-current" style="margin-top:18px"></div>
-				</div>
-				<div class="ra-card">
-					<div class="ra-card__head"><h3>${__("2 · What")}</h3><div class="ra-meta">${__("least access first")}</div></div>
-					<div class="ra-grantable"><div class="ra-empty"><span class="ra-spinner"></span></div></div>
+					<div class="ra-current"><div class="ra-meta">${__(
+						"Pick someone to see what they can do today."
+					)}</div></div>
 				</div>
 			</div>
-			<div class="ra-card ra-previewcard" hidden>
-				<div class="ra-card__head"><h3>${__("3 · Confirm")}</h3><div class="ra-meta">${__("assigning replaces the current profile — it does not add to it")}</div></div>
-				<div class="ra-previewbody"></div>
-			</div>
+			<div class="ra-grantbody"></div>
 		`);
 
-		let profiles;
-		try {
-			profiles = await frappe.xcall("role_advisor.api.get_grantable_profiles");
-		} catch (error) {
-			this.$main.find(".ra-userpick").html(
-				`<div class="ra-empty">${esc(error.message || __("You are not a delegated administrator."))}</div>`
-			);
-			this.$main.find(".ra-grantable").html(
-				`<div class="ra-empty">${__("A System Manager sets your scope and allowlist on a Delegated User Admin record.")}</div>`
-			);
-			return;
-		}
+		this.$main.find(".ra-grantmode button").on("click", (event) => {
+			this.grant.mode = $(event.currentTarget).data("mode");
+			this.$main.find(".ra-grantmode button").removeClass("on");
+			$(event.currentTarget).addClass("on");
+			this.render_grant_body();
+		});
 
 		this.$main
 			.find(".ra-scopenote")
 			.text(
-				this.summary.scope_companies.length
+				this.summary.scoped
 					? __("scoped to {0}", [this.summary.scope_companies.join(", ")])
-					: __("your scope")
+					: __("every user on the site")
 			);
 
 		this.user_field = frappe.ui.form.make_control({
@@ -1015,7 +1339,7 @@ class AccessDashboard {
 				options: "User",
 				label: __("User"),
 				fieldname: "ra_user",
-				placeholder: __("Search the users you administer"),
+				placeholder: __("Search by name or login"),
 				// Scoped server query, so the picker cannot suggest someone the
 				// caller would then be refused for.
 				get_query: "role_advisor.api.manageable_user_query",
@@ -1024,65 +1348,604 @@ class AccessDashboard {
 			render_input: true,
 		});
 
-		this.$main.find(".ra-grantable").html(
-			profiles.length
-				? profiles
-						.map(
-							(row, index) => `
-					<div class="ra-lrow clickable" data-profile="${esc(row.role_profile)}">
-						<div class="ra-rank ${index === 0 ? "lead" : ""}">${index + 1}</div>
-						<div>
-							<div class="ra-name">${esc(row.role_profile)}</div>
-							<div class="ra-lmeta">${num(row.doctype_count)} ${__("doctypes")} · ${num(row.perm_count)} ${__("grants")}</div>
-						</div>
-						<button class="ra-btn ghost sm">${__("Preview")}</button>
-					</div>`
-						)
-						.join("")
-				: `<div class="ra-empty">${__("Your allowlist is empty.")}</div>`
-		);
+		this.render_grant_body();
 
-		this.$main.find(".ra-grantable .ra-lrow").on("click", (event) => {
-			this.preview($(event.currentTarget).data("profile"));
-		});
-
-		// Arrived here from a user drawer: pre-select them.
+		// Arrived here from a user drawer or an anomaly row: pre-select them.
 		if (this.pending_user) {
 			this.user_field.set_value(this.pending_user);
 			this.pending_user = null;
 		}
 	}
 
+	render_grant_body() {
+		if (this.grant.mode === "profile") {
+			this.render_profile_mode();
+		} else {
+			this.render_needs_mode();
+		}
+	}
+
+	// ----------------------------------------------------- mode: what they do
+
+	async render_needs_mode() {
+		this.$main.find(".ra-grantbody").html(`
+			<div class="ra-row2eq">
+				<div class="ra-card">
+					<div class="ra-card__head">
+						<h3>${__("2 · What they must be able to do")}</h3>
+						<div class="ra-meta">${__("module, then document, then action")}</div>
+					</div>
+					<div class="ra-modchips"><div class="ra-empty"><span class="ra-spinner"></span></div></div>
+					<input class="ra-input ra-docfilter" type="search" style="width:100%;margin:14px 0 0"
+						placeholder="${__("or search every document…")}">
+					<div class="ra-doclist"><div class="ra-meta" style="padding:14px 2px">${__(
+						"Choose a module above, or search."
+					)}</div></div>
+				</div>
+				<div class="ra-card">
+					<div class="ra-card__head">
+						<h3>${__("Selected")}</h3>
+						<button class="ra-btn ghost sm ra-clearneeds">${__("Clear")}</button>
+					</div>
+					<div class="ra-needlist"></div>
+					<div class="ra-meta" style="margin-top:12px">${__(
+						"Only actions some role on this site actually grants are offered — an ask nothing can satisfy is not worth making."
+					)}</div>
+				</div>
+			</div>
+			<div class="ra-card">
+				<div class="ra-card__head">
+					<h3>${__("3 · What that takes")}</h3>
+					<div class="ra-meta">${__("resolved live · nothing is written until you say so")}</div>
+				</div>
+				<div class="ra-verdict"><div class="ra-empty">${__(
+					"Pick a person and at least one action."
+				)}</div></div>
+			</div>
+		`);
+
+		this.render_needs();
+
+		let modules;
+		try {
+			modules = await this.fetch("grant_modules", "role_advisor.grant.modules");
+		} catch (error) {
+			this.$main.find(".ra-modchips").html(`<div class="ra-empty">${esc(error.message)}</div>`);
+			return;
+		}
+
+		this.$main.find(".ra-modchips").html(
+			modules
+				.map(
+					(row) => `
+			<button class="ra-chip ${row.module === this.grant.module ? "on" : ""}" data-module="${esc(row.module)}"
+				title="${esc(row.module)} · ${num(row.doctypes)} ${__("grantable documents")}">
+				${esc(row.module)}<span>${num(row.doctypes)}</span>
+			</button>`
+				)
+				.join("")
+		);
+
+		this.$main.find(".ra-modchips .ra-chip").on("click", (event) => {
+			const module = $(event.currentTarget).data("module");
+			this.grant.module = this.grant.module === module ? null : module;
+			this.$main.find(".ra-modchips .ra-chip").removeClass("on");
+			if (this.grant.module) $(event.currentTarget).addClass("on");
+			this.$main.find(".ra-docfilter").val("");
+			this.load_documents();
+		});
+
+		let timer;
+		this.$main.find(".ra-docfilter").on("input", (event) => {
+			const txt = event.target.value.trim();
+			clearTimeout(timer);
+			timer = setTimeout(() => this.load_documents(txt), 220);
+		});
+
+		this.$main.find(".ra-clearneeds").on("click", () => {
+			this.grant.needs = [];
+			this.render_needs();
+			this.resolve_grant();
+		});
+
+		if (this.grant.module) this.load_documents();
+	}
+
+	async load_documents(txt = "") {
+		if (!this.grant.module && !txt) {
+			this.$main.find(".ra-doclist").html(
+				`<div class="ra-meta" style="padding:14px 2px">${__("Choose a module above, or search.")}</div>`
+			);
+			return;
+		}
+
+		this.$main.find(".ra-doclist").html(`<div class="ra-empty"><span class="ra-spinner"></span></div>`);
+
+		let docs;
+		try {
+			docs = await frappe.xcall("role_advisor.grant.documents", {
+				module: txt ? null : this.grant.module,
+				txt,
+				limit: 200,
+			});
+		} catch (error) {
+			this.$main.find(".ra-doclist").html(`<div class="ra-empty">${esc(error.message)}</div>`);
+			return;
+		}
+
+		if (!docs.length) {
+			this.$main.find(".ra-doclist").html(
+				`<div class="ra-empty">${__("No grantable document matches that.")}</div>`
+			);
+			return;
+		}
+
+		const has = (doctype, right) =>
+			this.grant.needs.some((need) => need.doctype === doctype && need.right === right);
+
+		this.$main.find(".ra-doclist").html(
+			docs
+				.map(
+					(row) => `
+			<div class="ra-docrow">
+				<div class="ra-docrow__name">
+					<b class="ra-ellipsis" title="${esc(row.doctype)}">${esc(row.doctype)}</b>
+					<small>${esc(row.module)}${row.submittable ? ` · ${__("submittable")}` : ""}</small>
+				</div>
+				<div class="ra-rights">
+					${row.rights
+						.map(
+							(right) => `
+						<button class="ra-right ${has(row.doctype, right) ? "on" : ""}"
+							data-doctype="${esc(row.doctype)}" data-right="${esc(right)}">${esc(right)}</button>`
+						)
+						.join("")}
+				</div>
+			</div>`
+				)
+				.join("")
+		);
+
+		this.$main.find(".ra-right").on("click", (event) => {
+			const $button = $(event.currentTarget);
+			this.toggle_need($button.data("doctype"), $button.data("right"));
+			$button.toggleClass("on");
+		});
+	}
+
+	toggle_need(doctype, right) {
+		const at = this.grant.needs.findIndex(
+			(need) => need.doctype === doctype && need.right === right
+		);
+		if (at >= 0) {
+			this.grant.needs.splice(at, 1);
+		} else {
+			this.grant.needs.push({ doctype, right });
+		}
+		this.render_needs();
+		this.resolve_grant();
+	}
+
+	render_needs() {
+		const grouped = {};
+		this.grant.needs.forEach((need) => {
+			(grouped[need.doctype] = grouped[need.doctype] || []).push(need.right);
+		});
+
+		const doctypes = Object.keys(grouped).sort();
+		this.$main.find(".ra-needlist").html(
+			doctypes.length
+				? doctypes
+						.map(
+							(doctype) => `
+				<div class="ra-needrow">
+					<b class="ra-ellipsis" title="${esc(doctype)}">${esc(doctype)}</b>
+					<div class="ra-badges">
+						${grouped[doctype]
+							.map(
+								(right) => `
+							<span class="ra-badge gain ra-needdrop" data-doctype="${esc(doctype)}" data-right="${esc(
+									right
+								)}" title="${__("Remove")}">${esc(right)} ✕</span>`
+							)
+							.join("")}
+					</div>
+				</div>`
+						)
+						.join("")
+				: `<div class="ra-empty">${__("Nothing selected yet.")}</div>`
+		);
+
+		this.$main.find(".ra-needdrop").on("click", (event) => {
+			const $badge = $(event.currentTarget);
+			this.toggle_need($badge.data("doctype"), $badge.data("right"));
+			this.$main
+				.find(`.ra-right[data-doctype="${$badge.data("doctype")}"][data-right="${$badge.data("right")}"]`)
+				.removeClass("on");
+		});
+	}
+
+	async resolve_grant() {
+		const user = this.user_field && this.user_field.get_value();
+		const $verdict = this.$main.find(".ra-verdict");
+
+		if (!user || !this.grant.needs.length) {
+			$verdict.html(`<div class="ra-empty">${__("Pick a person and at least one action.")}</div>`);
+			return;
+		}
+
+		$verdict.html(
+			`<div class="ra-empty"><span class="ra-spinner"></span> ${__("Checking every profile…")}</div>`
+		);
+
+		// Each keystroke-driven change fires this, so a slow answer for an old
+		// selection must not overwrite a fast answer for the current one.
+		const token = (this.grant.token = (this.grant.token || 0) + 1);
+
+		let verdict;
+		try {
+			verdict = await frappe.xcall("role_advisor.grant.resolve", {
+				user,
+				needs: this.grant.needs,
+			});
+		} catch (error) {
+			if (token !== this.grant.token) return;
+			$verdict.html(`<div class="ra-empty">${esc(error.message)}</div>`);
+			return;
+		}
+		if (token !== this.grant.token) return;
+
+		this.grant.verdict = verdict;
+		const tone =
+			verdict.resolution === "Covered"
+				? "good"
+				: verdict.resolution === "Fit Found"
+				? verdict.grantable
+					? "warn"
+					: "bad"
+				: "bad";
+
+		const over = verdict.over_grant || [];
+		const asked = this.grant.needs.length;
+
+		$verdict.html(`
+			<div class="ra-verdicthead">
+				<div>
+					<div class="ra-eyebrow" style="margin:0 0 6px">${esc(verdict.resolution)}</div>
+					<h2 class="ra-title" style="font-size:26px">${
+						verdict.profile
+							? esc(verdict.profile)
+							: verdict.resolution === "Covered"
+							? __("Already covered")
+							: __("Nothing covers this")
+					}</h2>
+					<p class="ra-sub">${esc(verdict.notes || "")}</p>
+				</div>
+				<div class="ra-tag ${tone}">${__("{0} actions asked for", [asked])}</div>
+			</div>
+			${
+				verdict.profile
+					? `<div class="ra-tile__stats" style="grid-template-columns:repeat(4,1fr);margin:18px 0">
+							<div><small>${__("Holds now")}</small><b style="font-size:14px">${esc(
+								(verdict.holds || []).join(", ") || __("no profile")
+							)}</b></div>
+							<div><small>${__("Would hold")}</small><b style="font-size:14px">${esc(verdict.profile)}</b></div>
+							<div><small>${__("Total grants")}</small><b style="font-size:14px">${num(
+								verdict.grants
+							)}</b></div>
+							<div><small>${__("Beyond the ask")}</small><b style="font-size:14px">${num(
+								over.length
+							)} ${__("documents")}</b></div>
+						</div>`
+					: ""
+			}
+			${
+				over.length
+					? `<details class="ra-details"><summary>${__(
+							"What else {0} would grant · {1} documents",
+							[esc(verdict.profile), num(over.length)]
+					  )}</summary><div class="ra-overlist">${over
+							.map((line) => `<div class="ra-ellipsis" title="${esc(line)}">${esc(line)}</div>`)
+							.join("")}</div></details>`
+					: ""
+			}
+			${
+				(verdict.unreachable || []).length
+					? `<div class="ra-card ra-sect" style="background:rgba(196,48,43,0.05)">
+							<b>${__("No role on this site grants these")}</b>
+							<div class="ra-badges" style="margin-top:10px">${verdict.unreachable
+								.map((line) => `<span class="ra-badge loss">${esc(line)}</span>`)
+								.join("")}</div>
+							<div class="ra-meta" style="margin-top:10px">${__(
+								"A role has to be created or a permission row added before this can be granted to anyone."
+							)}</div>
+						</div>`
+					: ""
+			}
+			${
+				(verdict.suggested_roles || []).length
+					? `<div class="ra-card ra-sect">
+							<b>${__("A new profile from these roles would cover it")}</b>
+							<div class="ra-badges" style="margin-top:10px">${verdict.suggested_roles
+								.map((role) => `<span class="ra-badge gain">${esc(role)}</span>`)
+								.join("")}</div>
+						</div>`
+					: ""
+			}
+			${
+				verdict.blocked_reason
+					? `<div class="ra-tag bad" style="margin-top:14px">${esc(verdict.blocked_reason)}</div>`
+					: ""
+			}
+			<div class="ra-verdictactions">
+				${
+					verdict.profile && verdict.grantable
+						? `<button class="ra-btn ra-dogrant">${__("Grant {0}", [esc(verdict.profile)])}</button>`
+						: ""
+				}
+				${
+					(verdict.grantable_alternatives || []).length > 1
+						? `<button class="ra-btn ghost ra-altgrant">${__("Other profiles that cover it · {0}", [
+								verdict.grantable_alternatives.length,
+						  ])}</button>`
+						: ""
+				}
+				${
+					verdict.resolution !== "Covered"
+						? `<button class="ra-btn ghost ra-asrequest">${__("Record as a request instead")}</button>`
+						: ""
+				}
+			</div>
+		`);
+
+		$verdict.find(".ra-dogrant").on("click", () => this.do_grant(verdict.profile));
+		$verdict.find(".ra-altgrant").on("click", () => this.show_alternatives(verdict));
+		$verdict.find(".ra-asrequest").on("click", () => this.record_grant_as_request(user));
+	}
+
+	show_alternatives(verdict) {
+		const rows = verdict.grantable_alternatives || [];
+		const { $drawer, close } = this.drawer(
+			__("Profiles that cover this"),
+			__("tightest first"),
+			`<div class="ra-list">${rows
+				.map(
+					(profile, index) => `
+				<div class="ra-lrow clickable" data-profile="${esc(profile)}">
+					<div class="ra-rank ${index === 0 ? "lead" : ""}">${index + 1}</div>
+					<div><div class="ra-name">${esc(profile)}</div>
+					<div class="ra-lmeta">${profile === verdict.profile ? __("the tightest fit") : __("also covers it")}</div></div>
+					<button class="ra-btn ghost sm">${__("Grant")}</button>
+				</div>`
+				)
+				.join("")}</div>`
+		);
+
+		$drawer.find(".ra-lrow").on("click", (event) => {
+			close();
+			this.do_grant($(event.currentTarget).data("profile"));
+		});
+	}
+
+	async do_grant(profile) {
+		const user = this.user_field.get_value();
+		if (!user || !profile) return;
+
+		const asked = this.grant.needs
+			.map((need) => `${need.doctype} · ${need.right}`)
+			.join("<br>");
+
+		frappe.confirm(
+			__(
+				"Assign <b>{0}</b> to <b>{1}</b>?<br><br>Assigning replaces the profile they hold — it does not add to it.<br><br><small>Asked for:<br>{2}</small>",
+				[frappe.utils.escape_html(profile), frappe.utils.escape_html(user), asked]
+			),
+			async () => {
+				const $button = this.$main.find(".ra-dogrant").prop("disabled", true);
+				$button.html(`<span class="ra-spinner"></span> ${__("Assigning…")}`);
+
+				try {
+					const result = await frappe.xcall("role_advisor.grant.apply", {
+						user,
+						role_profile: profile,
+						needs: this.grant.needs,
+					});
+
+					// "A profile was assigned" is not the outcome anyone wanted.
+					// "They can now do the thing" is, so it is re-checked and said.
+					if (result.covered) {
+						frappe.msgprint({
+							title: __("Granted"),
+							indicator: "green",
+							message: __(
+								"{0} now holds {1} and can do every one of the {2} actions asked for.",
+								[
+									frappe.utils.escape_html(user),
+									frappe.utils.escape_html(result.profiles.join(", ")),
+									this.grant.needs.length,
+								]
+							),
+						});
+					} else {
+						frappe.msgprint({
+							title: __("Granted, but not everything asked for"),
+							indicator: "orange",
+							message: __("Still not permitted: {0}", [
+								frappe.utils.escape_html((result.still_missing || []).join(", ")),
+							]),
+						});
+					}
+
+					this.cache = {};
+					this.summary = await frappe.xcall("role_advisor.dashboard.summary");
+					// The grant moved the audit count and may have cleared an
+					// anomaly; both are shown in the sidebar.
+					this.page.main
+						.find('.ra-nav a[data-view="audit"] .n')
+						.text(num(this.summary.assignments));
+					this.on_pick_user();
+					this.resolve_grant();
+				} catch (error) {
+					frappe.msgprint({ title: __("Refused"), message: esc(error.message), indicator: "red" });
+					$button.prop("disabled", false).text(__("Grant {0}", [profile]));
+				}
+			}
+		);
+	}
+
+	async record_grant_as_request(user) {
+		const dialog = new frappe.ui.Dialog({
+			title: __("Record as a request"),
+			fields: [
+				{
+					fieldtype: "Small Text",
+					fieldname: "reason",
+					label: __("Why is this needed?"),
+					reqd: 1,
+					description: __("Goes on the record with the resolution as it stands today."),
+				},
+			],
+			primary_action_label: __("Record"),
+			primary_action: async ({ reason }) => {
+				dialog.hide();
+				try {
+					const out = await frappe.xcall("role_advisor.requests.submit_request", {
+						user,
+						requirements: this.grant.needs,
+						reason,
+					});
+					frappe.show_alert({
+						message: __("Recorded as {0}", [out.request]),
+						indicator: "green",
+					});
+					this.cache = {};
+				} catch (error) {
+					frappe.msgprint({ title: __("Refused"), message: esc(error.message), indicator: "red" });
+				}
+			},
+		});
+		dialog.show();
+	}
+
+	// ------------------------------------------------------- mode: by profile
+
+	async render_profile_mode() {
+		this.$main.find(".ra-grantbody").html(`
+			<div class="ra-card">
+				<div class="ra-card__head">
+					<h3>${__("2 · Which profile")}</h3>
+					<div class="ra-meta">${__("least access first")}</div>
+				</div>
+				<div class="ra-grantable"><div class="ra-empty"><span class="ra-spinner"></span></div></div>
+			</div>
+			<div class="ra-card ra-previewcard" hidden>
+				<div class="ra-card__head">
+					<h3>${__("3 · Confirm")}</h3>
+					<div class="ra-meta">${__("assigning replaces the current profile — it does not add to it")}</div>
+				</div>
+				<div class="ra-previewbody"></div>
+			</div>
+		`);
+
+		let profiles;
+		try {
+			profiles = await this.fetch("grantable", "role_advisor.api.get_grantable_profiles");
+		} catch (error) {
+			this.$main.find(".ra-grantable").html(
+				`<div class="ra-empty">${esc(
+					error.message || __("You are not a delegated administrator.")
+				)}</div>`
+			);
+			return;
+		}
+
+		this.$main.find(".ra-grantable").html(
+			profiles.length
+				? `<div class="ra-list">${profiles
+						.map(
+							(row, index) => `
+					<div class="ra-lrow clickable" data-profile="${esc(row.role_profile)}">
+						<div class="ra-rank ${index === 0 ? "lead" : ""}">${index + 1}</div>
+						<div>
+							<div class="ra-name">${esc(row.role_profile)}${
+								row.privileged
+									? ` <span class="ra-badge loss">${__("privileged")}</span>`
+									: ""
+							}</div>
+							<div class="ra-lmeta">${num(row.doctype_count)} ${__("documents")} · ${num(
+								row.perm_count
+							)} ${__("grants")}</div>
+						</div>
+						<button class="ra-btn ghost sm">${__("Preview")}</button>
+					</div>`
+						)
+						.join("")}</div>`
+				: `<div class="ra-empty">${__("Your allowlist is empty.")}</div>`
+		);
+
+		this.$main.find(".ra-grantable .ra-lrow").on("click", (event) => {
+			this.preview($(event.currentTarget).data("profile"));
+		});
+	}
+
 	async on_pick_user() {
 		const user = this.user_field.get_value();
-		if (!user || user === this.assign.user) return;
-		this.assign.user = user;
+		if (!user) return;
+		this.grant.user = user;
 		this.$main.find(".ra-previewcard").attr("hidden", true);
 
-		const rows = await frappe.xcall("role_advisor.api.get_manageable_users", {
-			search: user,
-			limit: 1,
-		});
-		const row = (rows || [])[0];
-		if (!row) return;
+		this.$main
+			.find(".ra-current")
+			.html(`<div class="ra-empty"><span class="ra-spinner"></span></div>`);
+
+		let cov;
+		try {
+			cov = await frappe.xcall("role_advisor.grant.coverage", { user });
+		} catch (error) {
+			this.$main.find(".ra-current").html(`<div class="ra-empty">${esc(error.message)}</div>`);
+			return;
+		}
 
 		this.$main.find(".ra-current").html(`
-			<div class="ra-tile__stats" style="grid-template-columns:repeat(2,1fr)">
+			<div class="ra-tile__stats" style="grid-template-columns:repeat(4,1fr)">
 				<div><small>${__("Holds now")}</small><b style="font-size:14px">${esc(
-					(row.role_profiles || []).join(", ") || __("no profile")
+					cov.profiles.join(", ") || __("no profile")
 				)}</b></div>
-				<div><small>${__("Module profile")}</small><b style="font-size:14px">${esc(
-					row.module_profile || __("none")
+				<div><small>${__("Documents reachable")}</small><b style="font-size:14px">${num(
+					cov.doctypes
 				)}</b></div>
-				<div><small>${__("User type")}</small><b style="font-size:14px">${esc(row.user_type)}</b></div>
-				<div><small>${__("Login")}</small><b style="font-size:14px">${esc(row.name)}</b></div>
+				<div><small>${__("Total grants")}</small><b style="font-size:14px">${num(cov.rights)}</b></div>
+				<div><small>${__("Menu profile")}</small><b style="font-size:14px">${esc(
+					cov.module_profile || __("none")
+				)}</b></div>
 			</div>
-			<div class="ra-meta" style="margin-top:12px">${__("Pick a profile on the right to see the exact change.")}</div>
+			${
+				cov.modules.length
+					? `<div class="ra-badges" style="margin-top:12px">${cov.modules
+							.slice(0, 10)
+							.map(
+								(row) =>
+									`<span class="ra-badge" title="${num(row.rights)} ${__("grants")}">${esc(
+										row.module
+									)} · ${num(row.doctypes)}</span>`
+							)
+							.join("")}${
+							cov.modules.length > 10
+								? `<span class="ra-badge">+${cov.modules.length - 10}</span>`
+								: ""
+					  }</div>`
+					: `<div class="ra-tag bad" style="margin-top:12px">${__(
+							"This account cannot reach a single document today."
+					  )}</div>`
+			}
 		`);
+
+		if (this.grant.mode === "needs") this.resolve_grant();
 	}
 
 	async preview(profile) {
-		if (!this.assign.user) {
+		const user = this.user_field && this.user_field.get_value();
+		if (!user) {
 			frappe.show_alert({ message: __("Choose a user first."), indicator: "orange" });
 			return;
 		}
@@ -1096,7 +1959,7 @@ class AccessDashboard {
 		let diff;
 		try {
 			diff = await frappe.xcall("role_advisor.api.preview_assignment", {
-				user: this.assign.user,
+				user,
 				role_profile: profile,
 			});
 		} catch (error) {
@@ -1104,7 +1967,7 @@ class AccessDashboard {
 			return;
 		}
 
-		this.assign.profile = profile;
+		this.grant.profile = profile;
 		const badges = (items, cls) =>
 			items.length
 				? items.map((item) => `<span class="ra-badge ${cls}">${esc(item)}</span>`).join("")
@@ -1112,7 +1975,7 @@ class AccessDashboard {
 
 		this.$main.find(".ra-previewbody").html(`
 			<div class="ra-tile__stats" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
-				<div><small>${__("User")}</small><b style="font-size:14px">${esc(this.assign.user)}</b></div>
+				<div><small>${__("User")}</small><b style="font-size:14px">${esc(user)}</b></div>
 				<div><small>${__("From")}</small><b style="font-size:14px">${esc(
 					diff.profiles_before.join(", ") || __("no profile")
 				)}</b></div>
@@ -1149,11 +2012,14 @@ class AccessDashboard {
 
 		try {
 			const result = await frappe.xcall("role_advisor.api.assign_access", {
-				user: this.assign.user,
-				role_profile: this.assign.profile,
+				user: this.user_field.get_value(),
+				role_profile: this.grant.profile,
 			});
 			frappe.show_alert({
-				message: __("{0} now holds {1}", [this.assign.user, result.profiles.join(", ")]),
+				message: __("{0} now holds {1}", [
+					this.user_field.get_value(),
+					result.profiles.join(", "),
+				]),
 				indicator: result.outcome === "Applied" ? "green" : "blue",
 			});
 			// The audit count and the user's current holding both moved.
@@ -1166,7 +2032,7 @@ class AccessDashboard {
 				.text(num(this.summary.assignments));
 		} catch (error) {
 			frappe.msgprint({ title: __("Refused"), message: esc(error.message), indicator: "red" });
-			$button.prop("disabled", false).text(__("Assign {0}", [this.assign.profile]));
+			$button.prop("disabled", false).text(__("Assign {0}", [this.grant.profile]));
 		}
 	}
 

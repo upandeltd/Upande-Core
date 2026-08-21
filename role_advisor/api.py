@@ -14,7 +14,7 @@ therefore change exactly three things.
 import frappe
 from frappe.utils import cint
 
-from role_advisor import audit, capability, delegation, settings
+from role_advisor import audit, capability, delegation, privilege, settings
 
 
 def _profile_roles(profiles: list[str]) -> set[str]:
@@ -54,13 +54,38 @@ def manageable_user_query(
 	positional (doctype, txt, searchfield, start, page_len, filters) plus keyword
 	arguments this function has no use for.
 	"""
-	admin = delegation.assert_delegate()
+	admin = delegation.acting_admin()
+
+	like = f"%{txt or ''}%"
+	args = {
+		"like": like,
+		"page_len": cint(page_len) or 20,
+		"start": cint(start) or 0,
+		"reserved": tuple(delegation.RESERVED_USERS),
+	}
+
+	if admin is None:
+		# Unbounded caller: every enabled user, employee record or not. Joining
+		# Employee here would hide the 170 unlinked accounts, which are exactly
+		# the ones a System Manager most often needs to reach.
+		rows = frappe.db.sql(
+			"""
+			select u.name, u.full_name
+			from `tabUser` u
+			where u.enabled = 1 and u.name not in %(reserved)s
+			  and (u.name like %(like)s or u.full_name like %(like)s)
+			order by u.full_name
+			limit %(page_len)s offset %(start)s
+			""",
+			args,
+		)
+		return rows
 
 	companies = delegation.scope_companies(admin)
 	if not companies:
 		return []
 
-	like = f"%{txt or ''}%"
+	args["companies"] = tuple(companies)
 	rows = frappe.db.sql(
 		"""
 		select u.name, u.full_name
@@ -73,12 +98,7 @@ def manageable_user_query(
 		order by u.full_name
 		limit %(page_len)s offset %(start)s
 		""",
-		{
-			"companies": tuple(companies),
-			"like": like,
-			"page_len": cint(page_len) or 20,
-			"start": cint(start) or 0,
-		},
+		args,
 	)
 
 	# Branch scope and the reserved-user rules live in `can_manage`; re-check so
@@ -88,8 +108,11 @@ def manageable_user_query(
 
 @frappe.whitelist()
 def get_manageable_users(search: str | None = None, limit: int = 50) -> list[dict]:
-	"""Users inside the caller's scope."""
-	admin = delegation.assert_delegate()
+	"""Users the caller may administer.
+
+	A System Manager gets the whole site; a delegate gets their scope.
+	"""
+	admin = delegation.acting_admin()
 
 	filters = {"enabled": 1}
 	# Match either the login or the display name: callers search by both, and a
@@ -112,7 +135,12 @@ def get_manageable_users(search: str | None = None, limit: int = 50) -> list[dic
 	# `get_all` already applies the query-condition hook, but a delegate whose
 	# scope changed mid-session could hold a stale list, so each row is
 	# re-checked against the same gate that authorises writes.
-	manageable = [row for row in rows if delegation.can_manage(admin, row["name"])]
+	manageable = [
+		row
+		for row in rows
+		if row["name"] not in delegation.RESERVED_USERS
+		and (admin is None or delegation.can_manage(admin, row["name"]))
+	]
 
 	for row in manageable:
 		row["role_profiles"] = capability.get_user_role_profiles(row["name"])
@@ -122,18 +150,30 @@ def get_manageable_users(search: str | None = None, limit: int = 50) -> list[dic
 
 @frappe.whitelist()
 def get_grantable_profiles() -> list[dict]:
-	"""The caller's allowlist, with what each profile grants."""
-	admin = delegation.assert_delegate()
+	"""What the caller may hand out, with what each profile grants.
+
+	A delegate gets their allowlist. A System Manager gets every profile on the
+	site, flagged with whether it is privileged - they may grant those, but the
+	dashboard says so before they do.
+	"""
+	admin = delegation.acting_admin()
 	index = capability.build_capability_index()
 
+	names = (
+		[row.role_profile for row in admin.get("allowed_role_profiles") or []]
+		if admin
+		else frappe.get_all("Role Profile", pluck="name")
+	)
+
 	profiles = []
-	for row in admin.get("allowed_role_profiles") or []:
-		granted = index.get(row.role_profile, {})
+	for name in names:
+		granted = index.get(name, {})
 		profiles.append(
 			{
-				"role_profile": row.role_profile,
+				"role_profile": name,
 				"doctype_count": len(granted),
 				"perm_count": capability.total_perm_count(granted),
+				"privileged": bool(privilege.privileged_grants(name)) if not admin else False,
 			}
 		)
 
@@ -146,9 +186,9 @@ def preview_assignment(
 	user: str, role_profile: str, module_profile: str | None = None
 ) -> dict:
 	"""What would change, without changing it."""
-	admin = delegation.assert_delegate()
-	delegation.assert_can_manage(admin, user)
-	delegation.assert_can_grant(admin, role_profile, module_profile)
+	admin = delegation.acting_admin()
+	delegation.assert_target(admin, user)
+	delegation.assert_grant(admin, role_profile, module_profile)
 
 	before = audit.snapshot(user)
 	index = capability.build_capability_index()
@@ -176,9 +216,9 @@ def assign_access(
 	user: str, role_profile: str, module_profile: str | None = None
 ) -> dict:
 	"""Assign a role profile, and optionally a module profile, to `user`."""
-	admin = delegation.assert_delegate()
-	delegation.assert_can_manage(admin, user)
-	delegation.assert_can_grant(admin, role_profile, module_profile)
+	admin = delegation.acting_admin()
+	delegation.assert_target(admin, user)
+	delegation.assert_grant(admin, role_profile, module_profile)
 
 	before = audit.snapshot(user)
 

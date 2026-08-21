@@ -1,0 +1,59 @@
+/* Copyright (c) 2026, ghost-mann and contributors
+ * For license information, please see license.txt
+ *
+ * Loaded on every desk page and inert without `body.ra-standalone`, which
+ * only Role Advisor's own pages set. It lives here rather than in a page
+ * bundle because two pages need it and a page bundle only loads with its
+ * page - reaching /desk/my-access directly set the class with no rules to
+ * apply, which showed the desk sidebar on top of the app's own chrome.
+ */
+/* ==========================================================================
+ * Standalone app chrome
+ *
+ * The route is a desk route because the page needs frappe.ui controls, but
+ * nothing about the desk should be visible. The class is added on page show
+ * and removed on route change - see standalone() in the page script - so these
+ * rules can be unconditional inside it.
+ * ========================================================================== */
+body.ra-standalone .body-sidebar-container,
+body.ra-standalone .page-head,
+body.ra-standalone .navbar,
+body.ra-standalone .main-section > header,
+body.ra-standalone .main-section > footer,
+body.ra-standalone .page-toolbar{display:none!important}
+body.ra-standalone .main-section{margin-left:0!important;width:100%!important;max-width:none!important}
+body.ra-standalone #body,
+body.ra-standalone .page-container,
+body.ra-standalone .container.page-body,
+body.ra-standalone .page-wrapper{max-width:none!important;width:100%!important;padding-left:0!important;padding-right:0!important;margin:0!important}
+body.ra-standalone{background:#f4f3ef}
+/* The page owns the whole viewport now, so the negative margin that pulled it
+   out of the desk's padding would cut the topbar off. */
+body.ra-standalone .ra-dash,
+body.ra-standalone .ra-self{margin:0;min-height:100vh}
+
+/* Topbar */
+.ra-top{position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between;gap:20px;
+  padding:14px 32px;background:rgba(250,250,246,0.86);backdrop-filter:saturate(180%) blur(14px);
+  border-bottom:1px solid var(--hairline)}
+.ra-brand{display:inline-flex;align-items:center;gap:12px;text-decoration:none}
+.ra-brand img{border-radius:10px;display:block}
+.ra-brand span{display:flex;flex-direction:column;line-height:1.15}
+.ra-brand b{font:600 16px var(--sans);color:var(--ink);letter-spacing:-0.3px}
+.ra-brand small{font:500 11px var(--sans);color:var(--ink-mute);text-transform:uppercase;letter-spacing:1.4px}
+.ra-top__right{display:flex;align-items:center;gap:10px}
+.ra-topbtn{display:inline-flex;align-items:center;gap:7px;border:0;background:var(--surface-2);border-radius:999px;
+  padding:8px 15px;font:500 12px var(--sans);color:var(--ink-3);cursor:pointer;text-decoration:none;
+  box-shadow:var(--shadow-card);transition:all .2s}
+.ra-topbtn:hover{color:var(--ink);transform:translateY(-1px)}
+.ra-topbtn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+.ra-whoami{display:inline-flex;align-items:center;gap:9px;padding-left:6px}
+/* The sidebar defines this too; the topbar ships with its own copy so the
+   self-service page, which has no sidebar, is not missing it. */
+.ra-top .ra-avatar{width:30px;height:30px;border-radius:50%;background:var(--grad-ink,linear-gradient(135deg,#0a0a0a,#3a3a34));
+  color:#fafaf6;display:grid;place-items:center;font:600 11px var(--sans);flex-shrink:0}
+.ra-whoami span{font:500 12.5px var(--sans);color:var(--ink-3)}
+@media (max-width:900px){
+  .ra-top{padding:12px 18px}
+  .ra-whoami span,.ra-topbtn span{display:none}
+}

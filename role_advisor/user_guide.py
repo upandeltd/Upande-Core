@@ -182,27 +182,77 @@ callout(
     RED,
 )
 
-# ───────────────────────────── the console ─────────────────────────────
-para("Assigning access", "Heading 2")
-para("Open User Access from the sidebar, then User Access Console.")
-
-para("What you see", "Heading 3")
+# ───────────────────────────── getting in ─────────────────────────────
+para("Opening it", "Heading 2")
+para(
+    "Role Advisor is its own application, not a page buried in the ERP menu. There are three "
+    "ways in, and they all land in the same place:"
+)
 bullets([
-    ("The user list", "only the people in your company. Others do not appear, and cannot be "
-     "reached even by typing their name."),
-    ("Your grantable profiles", "the access levels you personally are allowed to hand out, "
-     "listed smallest first so the least-access option is the easiest to pick."),
+    ("The apps screen", "the Role Advisor tile, alongside the other applications."),
+    ("The address", "type /role-advisor. That is the link to send someone."),
+    ("The ERP sidebar", "the User Access entry, which now holds a single button into the app."),
 ])
+para(
+    "Once inside, the ERP navigation is gone. Everything Role Advisor does is in its own "
+    "sidebar on the left, and the button marked Frappe desk in that sidebar is the way back out."
+)
 
-para("How to assign", "Heading 3")
+table(
+    ["In the sidebar", "What it is for"],
+    [
+        ["Overview", "The estate in one screen: coverage, module exposure, what needs a decision"],
+        ["Anomalies", "Everything wrong or inconsistent, worst first"],
+        ["Users / Role Profiles / Modules", "Browse and drill into any of the three"],
+        ["Request Access", "Raise a request on someone's behalf"],
+        ["Incoming Requests", "The queue: grant, refuse, or re-check what people have asked for"],
+        ["Grant Access", "Give someone what they need, working from what they must be able to do"],
+        ["Designation Map", "The access level recorded against each job title"],
+        ["Bulk Sweep", "Apply the map to everyone it covers, after a preview"],
+        ["Reports / Audit Trail", "Read-only history and analysis"],
+        ["Delegates & Policy", "System Manager only: who may administer whom"],
+    ],
+    widths=[1.9, 4.2],
+)
+
+# ───────────────────────────── granting ─────────────────────────────
+para("Granting access", "Heading 2")
+para(
+    "The ERP decides what someone may do by looking at the permission rows behind the roles they "
+    "hold. So Grant Access asks the question that model can actually answer — what does this "
+    "person need to do — and works the access level out from the answer. You do not have to know "
+    "the permission model, and you do not have to guess which of eighty-eight names is right."
+)
+
+para("How to grant", "Heading 3")
 for n, text in enumerate([
-    "Search for the person and select them. You will see what they hold today.",
-    "Click Preview next to the profile you want to give them.",
-    "Read the two lists carefully: what they will gain, and what they will lose.",
-    "Confirm, or cancel and pick something else.",
+    "Pick the person. You immediately see what they can reach today, by area.",
+    "Pick an area of the business, then a document within it, then the actions they need — "
+    "read, write, create, submit, cancel, delete. Add as many as the job requires.",
+    "Read the answer. It names the tightest access level that covers everything you asked for, "
+    "how much it grants in total, and how much of that is beyond what you asked for.",
+    "Grant it, choose one of the alternatives, or record the whole thing as a request instead.",
 ], start=1):
     p = doc.add_paragraph(style="List Number")
     p.add_run(text)
+
+para(
+    "Only actions that some role on this system genuinely grants are offered. If nothing can "
+    "grant what you have asked for, the app says so plainly rather than letting you build a "
+    "request that could never be satisfied — and tells you which roles would have to be created "
+    "or extended first."
+)
+para(
+    "After the grant, the app re-checks and tells you whether the person can now do each of the "
+    "things you asked for. “A profile was assigned” is not the outcome anyone wanted.",
+    italic=True,
+)
+
+para("If you already know which access level you want", "Heading 3")
+para(
+    "Switch to By profile at the top of the screen. That lists what you may hand out, smallest "
+    "first, with the same preview and confirmation as before."
+)
 
 callout(
     "Read the “loses” list",
@@ -275,6 +325,65 @@ bullets([
      "Accountant. These need a decision from scratch."),
 ])
 
+# ───────────────────────────── anomalies ─────────────────────────────
+para("Anomalies and discrepancies", "Heading 2")
+para(
+    "The Anomalies screen is the one to open on a Monday. It runs fifteen checks over every "
+    "person, access level and permission row on the system, and it distinguishes between two "
+    "different kinds of problem — because they need different responses."
+)
+
+table(
+    ["", "What it means", "Example"],
+    [
+        ["Anomaly",
+         "The access is wrong on its own terms.",
+         "An access level that permits nothing, held by 53 people"],
+        ["Discrepancy",
+         "The access disagrees with something else that is also true.",
+         "Two people with the same job in the same company holding different access"],
+    ],
+    widths=[1.0, 2.6, 2.5],
+)
+
+para(
+    "Discrepancies are listed first. They are the expensive ones to find by hand, and they are "
+    "the ones where somebody has almost certainly made a mistake — an anomaly might be a "
+    "deliberate arrangement nobody wrote down."
+)
+
+para("What it is finding today", "Heading 3")
+table(
+    ["", "Finding", "Count"],
+    [
+        ["Discrepancy", "Job groups that disagree with themselves", "12 groups, 38 people"],
+        ["Discrepancy", "People whose access contradicts the designation map", "7"],
+        ["Discrepancy", "Accounts holding roles their access level does not grant", "17"],
+        ["Anomaly", "Security Guard grants nothing at all", "53 holders"],
+        ["Anomaly", "Accounts that can change permissions themselves", "25"],
+        ["Anomaly", "Disabled accounts that still carry their access", "66"],
+        ["Anomaly", "Enabled accounts with no access level set", "38"],
+        ["Anomaly", "Sets of access levels that are identical", "4 sets"],
+        ["Anomaly", "Granted accounts unused for six months or more", "88"],
+        ["Anomaly", "Access levels nobody holds", "14"],
+    ],
+    widths=[1.0, 3.4, 1.7],
+)
+
+para(
+    "Every row can be opened. Clicking a person opens everything known about their access; "
+    "clicking Show the other… lists every case rather than the sample. Each finding also carries "
+    "a one-line suggestion of what to do about it."
+)
+
+callout(
+    "Same job, different access",
+    "This is the finding worth acting on first. Where a job title in a company has settled on one "
+    "access level, the exceptions are either a deliberate variation nobody recorded, or a "
+    "mistake — and the app cannot tell which, so it reports rather than decides. A group of two "
+    "is never reported: two people doing the same job differently is a coin toss, not a pattern.",
+)
+
 # ───────────────────────────── reports ─────────────────────────────
 para("The five reports", "Heading 2")
 para("All read-only. None of them changes anything.")
@@ -283,15 +392,15 @@ table(
     ["Report", "The question it answers", "What it found"],
     [
         ["Designation Gap", "Who has no access level set at all?",
-         "41 people, 17 of whom have no employee record"],
+         "68 people, most of whom have no employee record"],
         ["Role Profile Overgrant", "What can each access level actually do?",
          "Upande Team allows almost everything"],
         ["Module Exposure", "Whose menu is untidy?",
-         "240 people see every part of the system"],
+         "357 people see every part of the system"],
         ["System Manager Audit", "Who has unrestricted access, and should they?",
-         "23 people, plus a service account and two test logins"],
+         "25 accounts, including a service account and two test logins"],
         ["Role Drift", "Is anyone about to lose access unexpectedly?",
-         "Nothing at risk"],
+         "17 accounts hold roles no profile accounts for"],
     ],
     widths=[1.5, 2.4, 2.3],
 )
@@ -307,13 +416,13 @@ para("What the review has already turned up", "Heading 2")
 para("Findings from the existing setup, in rough order of how much they matter.")
 
 bullets([
-    ("Almost everyone can reach almost everything", "316 of roughly 333 people with an access "
+    ("Almost everyone can reach almost everything", "316 of roughly 385 people with an access "
      "level can reach Accounts; 309 can reach HR. A handful of modules are properly scoped; the "
      "core business ones are wide open."),
-    ("Security Guard grants nothing", "16 people hold an access level that permits no action at "
+    ("Security Guard grants nothing", "53 people hold an access level that permits no action at "
      "all. Either it is incomplete, or those people need a different one."),
-    ("Three access levels are identical", "Upande Team, Upande Team - COO and Upande Team HR "
-     "Users allow exactly the same things. The different names promise a difference that does "
+    ("Access levels are duplicated", "Upande Team, Upande Team - COO and Upande Team HR Users "
+     "allow exactly the same things, and three other sets do too. The different names promise a difference that does "
      "not exist."),
     ("Temporary staff have more access than permanent", "Temporary -Mechanic allows considerably "
      "more than Mechanic."),
@@ -328,15 +437,21 @@ bullets([
 
 # ───────────────────────────── glossary of screens ─────────────────────────────
 para("Where everything lives", "Heading 2")
+para(
+    "Everything below is inside Role Advisor, in the sidebar. Nothing here needs the ERP menu."
+)
 table(
     ["Screen", "Use it to"],
     [
-        ["User Access Console", "Assign access to one person, with a preview first"],
-        ["Designation Access Map", "Record and review the access level for each job title"],
-        ["Delegated User Admin", "See your own scope and grantable list (read-only for you)"],
-        ["Access Assignment Log", "See every change ever made, by whom"],
-        ["User Access Settings", "System Manager only. Thresholds and policy."],
-        ["The five reports", "Understand the current state before changing it"],
+        ["Grant Access", "Give one person what they need, working from what they must be able to do"],
+        ["Anomalies", "Find what is wrong or inconsistent, worst first"],
+        ["Incoming Requests", "Answer what people have asked for"],
+        ["Designation Map", "Record and review the access level for each job title"],
+        ["Bulk Sweep", "Apply the map to everyone it covers, after a preview"],
+        ["Audit Trail", "See every change ever made, by whom"],
+        ["Delegates & Policy", "System Manager only: who may administer whom, and the thresholds"],
+        ["Reports", "Understand the current state before changing it"],
+        ["My Access", "Your own access, and how to ask for more. Available to everybody."],
     ],
     widths=[2.2, 4.0],
 )
@@ -354,6 +469,12 @@ bullets([
      "if it is appropriate."),
     ("“… cannot be delegated”", "that access level would let the recipient change permissions. "
      "It can only be given by a System Manager."),
+    ("“… covers this but is not one of the profiles you may grant”", "the app found an answer "
+     "and is telling you before you click, rather than after. Ask for it to be added to your "
+     "list, or record the whole thing as a request."),
+    ("“Administrator cannot be assigned a role profile”", "assigning an access level replaces "
+     "the holder's roles, so pointing it at Administrator would prune the one account "
+     "guaranteed to be able to undo it. Refused for everyone."),
 ])
 
 para("A note on the current stage", "Heading 2")

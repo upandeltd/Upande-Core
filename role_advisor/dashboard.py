@@ -17,7 +17,7 @@ from collections import Counter, defaultdict
 import frappe
 from frappe.utils import cint
 
-from role_advisor import capability, delegation, privilege, settings
+from role_advisor import anomalies, capability, delegation, privilege, settings
 
 SEVERITY_HIGH = "high"
 SEVERITY_MODERATE = "moderate"
@@ -335,93 +335,26 @@ def recent_assignments(limit: int = 12) -> list[dict]:
 
 @frappe.whitelist()
 def findings() -> list[dict]:
-	"""The things a human should act on, worst first. Counted, never guessed."""
+	"""The things a human should act on, worst first.
+
+	One line per anomaly, for the overview panel. The full set - with the rows
+	behind each one and the suggested fix - is `role_advisor.anomalies.overview`.
+	There is deliberately only one implementation of "what is wrong here": two
+	that could disagree would make the overview and the anomalies view argue.
+	"""
 	_guard()
-	index = capability.build_capability_index()
 
-	users = Counter()
-	for row in frappe.get_all(
-		"User Role Profile", filters={"parenttype": "User"}, fields=["role_profile"]
-	):
-		users[row["role_profile"]] += 1
-
-	out = []
-
-	empty_held = [
-		(p, users[p]) for p, caps in index.items() if not caps and users.get(p)
+	return [
+		{
+			"kind": row["kind"],
+			"severity": row["severity"],
+			"title": row["title"],
+			"detail": row["detail"],
+			"count": row["count"],
+			"discrepancy": row["discrepancy"],
+		}
+		for row in anomalies.scan()
 	]
-	for profile, count in sorted(empty_held, key=lambda pair: -pair[1]):
-		out.append(
-			{
-				"severity": SEVERITY_HIGH,
-				"title": f"{profile} grants nothing",
-				"detail": f"{count} users hold a profile that permits no action at all.",
-				"count": count,
-			}
-		)
-
-	# Profiles with identical grant sets: different names, same access.
-	signatures = defaultdict(list)
-	for profile, caps in index.items():
-		if caps:
-			signatures[
-				frozenset((dt, pm) for dt, perms in caps.items() for pm in perms)
-			].append(profile)
-	for members in signatures.values():
-		if len(members) > 1:
-			held = sum(users.get(m, 0) for m in members)
-			out.append(
-				{
-					"severity": SEVERITY_MODERATE,
-					"title": f"{len(members)} profiles are identical",
-					"detail": ", ".join(sorted(members)) + f" — {held} users between them.",
-					"count": held,
-				}
-			)
-
-	privileged = [p for p in index if privilege.is_privileged(p)]
-	if privileged:
-		out.append(
-			{
-				"severity": SEVERITY_MODERATE,
-				"title": f"{len(privileged)} profiles cannot be delegated",
-				"detail": ", ".join(sorted(privileged))
-				+ " — each grants write on permission-bearing doctypes.",
-				"count": len(privileged),
-			}
-		)
-
-	orphans = frappe.db.sql(
-		"""
-		select count(*) from `tabUser` u
-		where u.enabled = 1 and u.user_type = 'System User'
-		  and not exists (select 1 from `tabEmployee` e where e.user_id = u.name and e.status = 'Active')
-		"""
-	)[0][0]
-	if orphans:
-		out.append(
-			{
-				"severity": SEVERITY_LOW,
-				"title": f"{orphans} users have no employee record",
-				"detail": "They have no company, so no delegated administrator can reach them.",
-				"count": cint(orphans),
-			}
-		)
-
-	inactive_map = frappe.db.count("Designation Access Map", {"is_active": 0})
-	if inactive_map:
-		out.append(
-			{
-				"severity": SEVERITY_LOW,
-				"title": f"{inactive_map} map rows await a decision",
-				"detail": "Seeded from observed assignments and left inactive until reviewed.",
-				"count": inactive_map,
-			}
-		)
-
-	order = {SEVERITY_HIGH: 0, SEVERITY_MODERATE: 1, SEVERITY_LOW: 2}
-
-	return sorted(out, key=lambda row: (order[row["severity"]], -row["count"]))
 
 
 # ---------------------------------------------------------------------------
@@ -656,7 +589,6 @@ def map_update(name: str, field: str, value=None) -> dict:
 	else:
 		doc.set(field, value or None)
 	doc.save(ignore_permissions=True)
-	frappe.db.commit()
 
 	return {"name": doc.name, "field": field, "value": doc.get(field)}
 
@@ -819,7 +751,6 @@ def delegate_save(user: str, companies=None, profiles=None, enabled=1) -> dict:
 		target.append("roles", {"role": role})
 		target.save(ignore_permissions=True)
 
-	frappe.db.commit()
 	delegation.clear_cache()
 
 	return {"user": doc.user, "enabled": doc.enabled, "granted_role": role}
@@ -832,7 +763,6 @@ def delegate_toggle(user: str, enabled) -> dict:
 	doc = frappe.get_doc("Delegated User Admin", user)
 	doc.enabled = cint(enabled)
 	doc.save(ignore_permissions=True)
-	frappe.db.commit()
 	delegation.clear_cache()
 
 	return {"user": user, "enabled": doc.enabled}
@@ -883,7 +813,6 @@ def settings_write(values) -> dict:
 		if key in editable:
 			doc.set(key, value)
 	doc.save(ignore_permissions=True)
-	frappe.db.commit()
 	frappe.clear_document_cache("User Access Settings")
 
 	return settings_read()

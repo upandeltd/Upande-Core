@@ -4,7 +4,7 @@
 import frappe
 from frappe.tests import IntegrationTestCase
 
-from role_advisor import api, delegation
+from role_advisor import api, delegation, permissions
 from role_advisor.tests.test_delegation import (
 	ADMIN,
 	ALLOWED_PROFILE,
@@ -50,25 +50,60 @@ class TestConsolePage(IntegrationTestCase):
 			"a Page on the workspace's own route can never be reached",
 		)
 
-	def test_the_workspace_links_to_the_console_and_the_reports(self):
+	def test_the_workspace_is_a_door_and_not_a_second_navigation(self):
+		"""Everything the app does is in the app's own sidebar.
+
+		Listing it again on the workspace gave two navigations that could
+		disagree, and the desk one always won because it loads first. The
+		workspace keeps exactly one entry: the way in.
+		"""
 		self.assertTrue(frappe.db.exists("Workspace", "User Access"))
 
 		shortcuts = frappe.get_all(
 			"Workspace Shortcut", filters={"parent": "User Access"}, pluck="link_to"
 		)
-		self.assertIn("assign-access", shortcuts)
+		self.assertEqual(shortcuts, ["access-dashboard"])
 
 		links = frappe.get_all(
 			"Workspace Link", filters={"parent": "User Access"}, pluck="link_to"
 		)
-		for report in (
-			"Designation Gap",
-			"Module Exposure",
-			"Role Drift",
-			"System Manager Audit",
-			"Role Profile Overgrant",
-		):
-			self.assertIn(report, links)
+		self.assertEqual(links, [], "the workspace should carry no link cards")
+
+	def test_the_app_appears_on_the_apps_screen_with_a_route_that_exists(self):
+		entries = frappe.get_hooks("add_to_apps_screen", app_name="role_advisor")
+
+		self.assertEqual(len(entries), 1)
+		entry = entries[0]
+		self.assertEqual(entry["title"], "Role Advisor")
+		self.assertEqual(entry["route"], "/desk/access-dashboard")
+		self.assertTrue(
+			frappe.db.exists("Page", entry["route"].rsplit("/", 1)[-1]),
+			"the apps screen points at a page that does not exist",
+		)
+		self.assertEqual(
+			entry["has_permission"], "role_advisor.permissions.has_app_permission"
+		)
+
+	def test_the_short_url_lands_on_the_dashboard(self):
+		"""`/role-advisor` is the address to give someone."""
+		targets = {
+			row["source"]: row["target"]
+			for row in frappe.get_hooks("website_redirects", app_name="role_advisor")
+		}
+
+		self.assertEqual(targets["/role-advisor"], "/desk/access-dashboard")
+		self.assertEqual(targets["/my-access"], "/desk/my-access")
+
+	def test_the_apps_screen_shows_the_app_to_an_administrator(self):
+		self.assertTrue(permissions.has_app_permission())
+
+	def test_the_apps_screen_shows_the_app_to_a_delegate(self):
+		frappe.set_user(ADMIN)
+		self.assertTrue(permissions.has_app_permission())
+
+	def test_the_apps_screen_hides_the_app_from_everyone_else(self):
+		frappe.set_user(IN_SCOPE)
+		self.assertFalse(permissions.has_app_permission())
 
 	def test_the_console_boot_calls_succeed_for_a_delegate(self):
 		"""Both calls the page makes on load, in the delegate's own session."""
