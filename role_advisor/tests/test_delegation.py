@@ -4,7 +4,7 @@
 import frappe
 from frappe.tests import IntegrationTestCase
 
-from role_advisor import capability, delegation
+from role_advisor import capability, delegation, settings
 from role_advisor.tests.fixtures import (
 	INNOCUOUS_DOCTYPE,
 	clear_delegate,
@@ -45,6 +45,14 @@ def build_fixture(case):
 	capability.clear_capability_index()
 
 	ensure_user(ADMIN)
+	# A delegate is a delegate-role holder *bounded* by a record - the record
+	# alone grants nothing, which is why production delegates already hold
+	# User Manager. The fixture must model both halves.
+	admin_doc = frappe.get_doc("User", ADMIN)
+	if settings.delegate_role() not in [r.role for r in admin_doc.roles]:
+		admin_doc.append("roles", {"role": settings.delegate_role()})
+		admin_doc.save(ignore_permissions=True)
+
 	ensure_employee(ensure_user(IN_SCOPE), case.companies[0])
 	ensure_employee(ensure_user(OUT_OF_SCOPE), case.companies[1])
 	ensure_user(UNLINKED)

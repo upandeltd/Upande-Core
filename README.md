@@ -46,6 +46,36 @@ A profile that grants write on `User`, `Role`, `Role Profile`, `Module Profile`,
 allowlisted. That check is **computed from the capability index**, not matched on
 role names — a name list rots the moment someone creates `Site Admin Copy`.
 
+### Access Dashboard
+
+```
+/desk/access-dashboard
+```
+
+Six views over one question — who can do what, and should they. Every number is
+counted server-side by `role_advisor.dashboard`; where a trend cannot be derived
+from stored data it is not drawn.
+
+| View | |
+|---|---|
+| `Overview` | KPIs, the module-exposure grid, findings worst-first, most-held profiles, coverage by designation |
+| `Users` | every user with search, company filter, and quick filters for no-profile / disabled / admins |
+| `Role Profiles` | tiles flagging privileged and grants-nothing profiles |
+| `Modules` | exposure grid plus a ranked detail list |
+| `Assign Access` | the three-step flow: who → what → confirm, with the full role diff |
+| `Audit Trail` | every assignment, newest first |
+
+Views deep-link: `/desk/access-dashboard/assign` opens straight into assignment,
+so a link can be shared.
+
+**A System Manager sees the whole estate even when they also hold a delegate
+record** — the record bounds what they may *grant*, not what they may *see*.
+A delegate sees only their own scope, and the header says which.
+
+Access needs the delegate role **and** an enabled `Delegated User Admin` record.
+The record alone grants nothing; it bounds a role holder rather than replacing
+one.
+
 ### Using it
 
 Everything lives under the **User Access** workspace in the desk.
