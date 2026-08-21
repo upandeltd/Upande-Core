@@ -1,8 +1,8 @@
 app_name = "role_advisor"
 app_title = "Role Advisor"
-app_publisher = "Upande"
+app_publisher = "ghost-mann"
 app_description = "Minimum-redundancy Role Profile advisor for Frappe"
-app_email = "james@upande.com"
+app_email = "https://github.com/ghost-mann/role-advisor"
 app_license = "mit"
 
 # Apps

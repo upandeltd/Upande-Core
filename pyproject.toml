@@ -1,9 +1,9 @@
 [project]
 name = "role_advisor"
 authors = [
-    { name = "Upande", email = "james@upande.com"}
+    { name = "ghost-mann" }
 ]
-description = "Minimum-redundancy Role Profile advisor for Frappe"
+description = "Delegated user access management for Frappe v16"
 requires-python = ">=3.14"
 readme = "README.md"
 dynamic = ["version"]

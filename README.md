@@ -1,98 +1,94 @@
 ## Role Advisor
 
-Works out the minimum-redundancy Role Profile to assign a user, based on the
-transactions they need to perform — and shows the administrator exactly what a
-suggested profile would over-grant before they approve it.
+Delegated user access management for Frappe v16.
 
-### Console
+Lets an organisation's own staff manage users — assigning role profiles, module
+profiles and scope — without any delegated administrator being able to grant
+more than they were authorised to grant.
 
-`/app/role-advisor-console` (System Manager only). Pick a user, pick the
-transactions they need, hit **Resolve**. One of four outcomes:
+Repository: <https://github.com/ghost-mann/role-advisor>
 
-| Status | Meaning | Next step |
-|---|---|---|
-| `Covered` | The profiles the user already holds cover every requested transaction. | Nothing to do. |
-| `Fit Found` | An existing profile covers the request. The console shows the full over-grant diff. | **Apply** replaces the user's profiles with it. |
-| `Gap - New Profile Needed` | Every requirement exists in some role, but no single profile bundles them. | Create a profile from the existing roles. |
-| `Gap - New Role Needed` | Some requirement is granted by no role on the site. | Create or extend a role first. |
+### What it does
 
-Every resolve writes an **Access Request Log** row, including `Covered` — the
-audit trail has no holes.
+| | |
+|---|---|
+| **Assignment** | A `Designation → Role Profile` map, resolved most-specific-wins on designation → company → branch, applied in bulk with a dry-run first. |
+| **Delegation** | A bounded administrator: manages only users inside their company scope, grants only profiles on their explicit allowlist. |
+| **Visibility** | Five read-only reports plus an Excel workbook describing what users can actually do today. |
 
-### Tightest fit
+### Doctypes
 
-When several profiles cover the request they differ only in what *else* they
-hand over, so the smallest total permission count wins: least authority beyond
-the ask, smallest blast radius. Ties break on fewer distinct doctypes, then on
-profile name so the suggestion is stable across runs.
+- **User Access Settings** (Single) — every threshold and policy, so the app
+  re-targets to another project without code changes.
+- **Designation Access Map** — the mapping. Scope fields are prefixed `for_*`
+  because Frappe stamps `frappe.defaults` onto any Link field named exactly
+  `company`, which would make an "applies to every company" row impossible.
+- **Delegated User Admin** — one record per administrator: company scope plus
+  the profiles they may hand out. Deliberately *not* "the profiles they hold",
+  so administering access does not inflate the administrator's own access.
+- **Access Assignment Log** — immutable. No role holds write or delete.
+
+### Delegation
+
+Every field that matters on `User` — `roles`, `role_profiles`, `block_modules`,
+`user_type`, `api_key`, `api_secret` — sits at **permlevel 1**, and permlevel is
+all-or-nothing. There is no way to grant `role_profiles` while withholding
+`api_secret` through permissions, so delegates get no permlevel-1 write at all
+and go through `role_advisor.api` instead. `assign_access` takes three arguments
+and can therefore change exactly three things.
+
+Enforcement is **opt-in**: restrictions apply only to a delegate-role holder who
+also has an enabled `Delegated User Admin` record. Installing the app changes
+nothing until such a record exists.
+
+A profile that grants write on `User`, `Role`, `Role Profile`, `Module Profile`,
+`Custom DocPerm`, `DocPerm` or `Property Setter` can never be delegated, even if
+allowlisted. That check is **computed from the capability index**, not matched on
+role names — a name list rots the moment someone creates `Site Admin Copy`.
+
+### Reports
+
+`Designation Gap`, `Module Exposure`, `Role Drift`, `System Manager Audit`,
+`Role Profile Overgrant`. All read-only.
+
+### Workbook
+
+```bash
+bench --site <site> execute role_advisor.workbook.build
+```
+
+Writes `docs/user-access-workbook-<date>.xlsx` — four sheets covering users,
+role profiles (with duplicate and subset analysis plus proposed canonical
+names), roles, and the full profile-by-doctype permission matrix. Columns marked
+`(EDITABLE)` are inert, parked for a future importer.
 
 ### v16 notes
 
-- `User.role_profile_name` is deprecated. `User.move_role_profile_name_to_role_profiles`
-  moves any value written to it into the `role_profiles` child table and nulls
-  it, keeping it only as a mirror of `role_profiles[0]`. A user may hold several
-  profiles, so **coverage is judged on the union of all of them**, and
-  `apply_suggestion` writes `role_profiles`.
-- `apply_suggestion` **replaces** rather than appends. Appending would leave the
-  broader profile in place, keeping every grant the tighter one was chosen to
-  avoid. The replaced profile list is recorded in the log's `decision_notes`.
-
-### Capability index
-
-`build_capability_index()` returns `{role_profile: {doctype: {perm, ...}}}`,
-cached in `frappe.cache()` for ten minutes and invalidated by `doc_events` on
-Role Profile, Custom DocPerm and DocPerm.
-
-Three rows are deliberately not counted as grants:
-
-- **permlevel > 0** — a field-group grant, not a grant on the document.
-- **`if_owner`** — cannot authorise a transaction against an arbitrary record.
-- rights outside `TRACKED_PERMS` (`email`, `print`, `share`) — noise in the diff.
-
-`demo_data` sets every tracked right explicitly, including the denied ones:
-`Custom DocPerm` defaults **both `read` and `export` to 1**, so listing only the
-granted rights silently hands every seeded role an `export` permission.
-
-Custom DocPerm overrides are applied **per doctype, not per role**: if any Custom
-DocPerm row exists for a doctype, core discards that doctype's standard DocPerms
-for every role. `_perm_rows_for_roles` is a batched form of
-`frappe.permissions.get_all_perms` (which is per-role, and so costs hundreds of
-round trips on a large site); a test asserts the two agree, so a change in core
-fails loudly instead of producing wrong advice.
-
-### Demo data
-
-`role_advisor/demo_data.py::seed()` is idempotent and runs from the
-`after_install` hook and from the test suite, so the console and the tests
-exercise identical data. It creates 7 `RA *` roles, 4 `RA *` role profiles, 13
-Transaction Catalog rows, and 2 `@example.com` demo users.
-
-It has to be an `after_install` hook, **not** a patch: `install_app` calls
-`set_all_patches_as_completed(app)`, which marks every entry in `patches.txt` as
-run without executing it — so a seed patch never fires on a fresh install, and
-`bench migrate` then skips it forever. The `v1_0.seed_demo_data` patch is kept
-only for sites that installed the app before the patch existed. To seed a site
-that is already installed:
-
-    bench --site <site> execute role_advisor.install.after_install
-
-Permissions attach only to the app's own `RA Demo *` doctypes — never to real
-ones, because a Custom DocPerm row would discard their standard permissions
-site-wide. `role_advisor.demo_data.teardown()` removes it all again.
-
-Note that `RA Demo Pick List` deliberately grants System Manager no `delete`
-right: the `Gap - New Role Needed` scenario needs one pair that no role grants.
+- `User.role_profile_name` is deprecated; write the `role_profiles` child table.
+  Always via `capability.set_user_role_profiles`, which clears the stale mirror —
+  otherwise the *next* save silently turns a replace into an append.
+- `populate_role_profile_roles` prunes roles to the union of the user's profiles
+  on every save. HRMS re-adds `Leave Approver`/`Expense Approver` afterwards via
+  a `User.validate` hook, so those survive; anything else granted outside a
+  profile does not.
+- **`block_modules` is not a permission boundary.** `frappe/permissions.py` never
+  consults modules; `block_modules` is read only by the Workspace sidebar and by
+  Dashboards/Charts/Number Cards. Module profiles are navigation hygiene.
+- If any `Custom DocPerm` row exists for a doctype, core discards that doctype's
+  standard DocPerms for **every** role. Never seed Custom DocPerm against a real
+  doctype.
+- Seed from `after_install`, never `patches.txt`: `install_app` marks every patch
+  as already run.
 
 ### Tests
 
 ```bash
-bench --site webstore.localhost run-tests --app role_advisor
+bench --site <site> run-tests --app role_advisor
 ```
 
-Covers the four scenarios from the brief, both Gap kinds, the union-of-profiles
-read model, replace-not-append on apply, the System Manager gate, the audit
-trail, and core parity of the batched permission query.
+`IntegrationTestCase` rolls back once per **class**, not per test, so tests clear
+their own rows. `sweep.apply` commits, so that suite purges explicitly.
 
-#### License
+### License
 
-mit
+MIT

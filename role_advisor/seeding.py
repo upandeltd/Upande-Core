@@ -1,4 +1,4 @@
-# Copyright (c) 2026, Upande and contributors
+# Copyright (c) 2026, ghost-mann and contributors
 # For license information, please see license.txt
 
 """Seed the Designation Access Map from what users already hold.

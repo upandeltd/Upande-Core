@@ -1,4 +1,4 @@
-# Copyright (c) 2026, Upande and contributors
+# Copyright (c) 2026, ghost-mann and contributors
 # For license information, please see license.txt
 
 """Snapshot a user's access, and record what changed.
