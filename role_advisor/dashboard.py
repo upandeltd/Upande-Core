@@ -419,3 +419,468 @@ def findings() -> list[dict]:
 	order = {SEVERITY_HIGH: 0, SEVERITY_MODERATE: 1, SEVERITY_LOW: 2}
 
 	return sorted(out, key=lambda row: (order[row["severity"]], -row["count"]))
+
+
+# ---------------------------------------------------------------------------
+# Drill-in detail. Everything the desk form would have shown, so the dashboard
+# does not have to hand off to it.
+# ---------------------------------------------------------------------------
+
+
+@frappe.whitelist()
+def user_detail(user: str) -> dict:
+	"""Everything about one user's access, in one call."""
+	admin = _guard()
+	if admin:
+		delegation.assert_can_manage(admin, user)
+
+	doc = frappe.db.get_value(
+		"User",
+		user,
+		["name", "full_name", "enabled", "user_type", "module_profile", "last_active", "last_login"],
+		as_dict=True,
+	)
+	if not doc:
+		frappe.throw(frappe._("{0} not found").format(user), frappe.DoesNotExistError)
+
+	employee = frappe.db.get_value(
+		"Employee",
+		{"user_id": user, "status": "Active"},
+		["name", "company", "branch", "department", "designation", "grade"],
+		as_dict=True,
+	)
+
+	profiles = capability.get_user_role_profiles(user)
+	index = capability.build_capability_index()
+	granted: dict[str, set[str]] = {}
+	for profile in profiles:
+		for doctype, perms in index.get(profile, {}).items():
+			granted.setdefault(doctype, set()).update(perms)
+
+	profile_roles = set()
+	if profiles:
+		profile_roles = set(
+			frappe.get_all(
+				"Has Role",
+				filters={"parent": ("in", profiles), "parenttype": "Role Profile"},
+				pluck="role",
+			)
+		)
+	held = set(
+		frappe.get_all("Has Role", filters={"parent": user, "parenttype": "User"}, pluck="role")
+	)
+
+	return {
+		"user": doc,
+		"employee": employee,
+		"profiles": profiles,
+		"roles": sorted(held),
+		# Roles outside every profile are what v16 prunes on the next save.
+		"roles_outside_profile": sorted(held - profile_roles) if profiles else [],
+		"doctypes": len(granted),
+		"grants": capability.total_perm_count(granted),
+		"top_grants": sorted(
+			({"doctype": dt, "rights": sorted(p)} for dt, p in granted.items()),
+			key=lambda row: (-len(row["rights"]), row["doctype"]),
+		)[:20],
+		"permissions": frappe.get_all(
+			"User Permission", filters={"user": user}, fields=["allow", "for_value"], limit=50
+		),
+		"history": frappe.get_all(
+			"Access Assignment Log",
+			filters={"target_user": user},
+			fields=["name", "actor", "trigger", "outcome", "profiles_before", "profiles_after", "creation"],
+			order_by="creation desc",
+			limit=10,
+		),
+	}
+
+
+@frappe.whitelist()
+def profile_detail(profile: str) -> dict:
+	"""What a profile grants, who holds it, and what it duplicates."""
+	_guard()
+	index = capability.build_capability_index()
+	if profile not in index:
+		frappe.throw(frappe._("{0} not found").format(profile), frappe.DoesNotExistError)
+
+	granted = index[profile]
+	signature = frozenset((dt, pm) for dt, perms in granted.items() for pm in perms)
+
+	duplicates, supersets = [], []
+	for other, caps in index.items():
+		if other == profile:
+			continue
+		other_sig = frozenset((dt, pm) for dt, perms in caps.items() for pm in perms)
+		if other_sig and other_sig == signature:
+			duplicates.append(other)
+		elif signature and signature < other_sig:
+			supersets.append((len(other_sig), other))
+
+	grants = privilege.privileged_grants(profile)
+	if privilege.UNKNOWN_PROFILE in grants:
+		grants = {}
+
+	module_of = {
+		row["name"]: row["module"]
+		for row in frappe.get_all("DocType", fields=["name", "module"])
+	}
+	by_module = Counter(module_of.get(dt) for dt in granted if module_of.get(dt))
+
+	return {
+		"profile": profile,
+		"roles": sorted(
+			frappe.get_all(
+				"Has Role", filters={"parent": profile, "parenttype": "Role Profile"}, pluck="role"
+			)
+		),
+		"holders": frappe.db.sql(
+			"""
+			select u.name as user, u.full_name as full_name, u.enabled as enabled,
+			       e.company as company, e.designation as designation
+			from `tabUser Role Profile` p
+			join `tabUser` u on u.name = p.parent
+			left join `tabEmployee` e on e.user_id = u.name and e.status = 'Active'
+			where p.parenttype = 'User' and p.role_profile = %(profile)s
+			order by u.enabled desc, u.full_name
+			""",
+			{"profile": profile},
+			as_dict=True,
+		),
+		"doctypes": len(granted),
+		"grants": capability.total_perm_count(granted),
+		"privileged": bool(grants),
+		"privileged_grants": privilege.describe(grants) if grants else "",
+		"duplicate_of": sorted(duplicates),
+		"subset_of": min(supersets)[1] if supersets else None,
+		"modules": [{"module": m, "doctypes": n} for m, n in by_module.most_common()],
+		"matrix": sorted(
+			({"doctype": dt, "module": module_of.get(dt, ""), "rights": sorted(p)} for dt, p in granted.items()),
+			key=lambda row: (row["module"], row["doctype"]),
+		),
+	}
+
+
+@frappe.whitelist()
+def module_detail(module: str) -> dict:
+	"""Which profiles reach a module, and who holds them."""
+	_guard()
+	index = capability.build_capability_index()
+	doctypes = set(frappe.get_all("DocType", filters={"module": module}, pluck="name"))
+
+	holders = defaultdict(set)
+	for row in frappe.get_all(
+		"User Role Profile", filters={"parenttype": "User"}, fields=["parent", "role_profile"]
+	):
+		holders[row["role_profile"]].add(row["parent"])
+
+	profiles, users = [], set()
+	for profile, caps in index.items():
+		touched = doctypes & set(caps)
+		if not touched:
+			continue
+		people = holders.get(profile, set())
+		users |= people
+		profiles.append(
+			{"profile": profile, "doctypes": len(touched), "users": len(people)}
+		)
+
+	return {
+		"module": module,
+		"doctypes_total": len(doctypes),
+		"users": len(users),
+		"profiles": sorted(profiles, key=lambda row: (-row["users"], -row["doctypes"])),
+	}
+
+
+@frappe.whitelist()
+def log_detail(name: str) -> dict:
+	"""One audit row in full."""
+	_guard()
+
+	return frappe.db.get_value(
+		"Access Assignment Log",
+		name,
+		[
+			"name", "actor", "target_user", "trigger", "outcome", "creation",
+			"profiles_before", "profiles_after", "module_profile_before",
+			"module_profile_after", "roles_gained", "roles_lost", "decision_notes",
+		],
+		as_dict=True,
+	)
+
+
+# ---------------------------------------------------------------------------
+# Designation Access Map, editable in place.
+# ---------------------------------------------------------------------------
+
+
+@frappe.whitelist()
+def map_list() -> list[dict]:
+	_guard()
+
+	rows = frappe.get_all(
+		"Designation Access Map",
+		fields=[
+			"name", "designation", "for_company", "for_branch", "role_profile",
+			"module_profile", "is_active", "confidence", "source", "evidence",
+		],
+		limit_page_length=0,
+	)
+	order = {"High": 0, "Medium": 1, "Low": 2, "None": 3}
+
+	return sorted(
+		rows, key=lambda row: (row["is_active"], order.get(row["confidence"], 9), row["designation"])
+	)
+
+
+@frappe.whitelist()
+def map_update(name: str, field: str, value=None) -> dict:
+	"""Activate, deactivate or repoint one map row.
+
+	System-Manager-only, and confined to three fields - the dashboard must not
+	become a general-purpose document editor with no validation.
+	"""
+	frappe.only_for("System Manager")
+
+	allowed = {"is_active", "role_profile", "module_profile"}
+	if field not in allowed:
+		frappe.throw(frappe._("{0} cannot be edited here.").format(field))
+
+	doc = frappe.get_doc("Designation Access Map", name)
+	if field == "is_active":
+		doc.is_active = cint(value)
+	else:
+		doc.set(field, value or None)
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+
+	return {"name": doc.name, "field": field, "value": doc.get(field)}
+
+
+@frappe.whitelist()
+def profile_options() -> list[dict]:
+	"""Every profile, flagged so the map editor can warn before it is chosen."""
+	_guard()
+	index = capability.build_capability_index()
+
+	return sorted(
+		(
+			{
+				"profile": profile,
+				"grants": capability.total_perm_count(caps),
+				"privileged": privilege.is_privileged(profile),
+			}
+			for profile, caps in index.items()
+		),
+		key=lambda row: row["profile"],
+	)
+
+
+# ---------------------------------------------------------------------------
+# Reports and the sweep, in place of their desk equivalents.
+# ---------------------------------------------------------------------------
+
+REPORTS = (
+	"Designation Gap",
+	"Module Exposure",
+	"Role Drift",
+	"System Manager Audit",
+	"Role Profile Overgrant",
+)
+
+
+@frappe.whitelist()
+def report(name: str) -> dict:
+	"""Run one of this app's reports and return columns and rows."""
+	_guard()
+	if name not in REPORTS:
+		frappe.throw(frappe._("{0} is not a Role Advisor report.").format(name))
+
+	from frappe.desk.query_report import run
+
+	result = run(report_name=name, ignore_prepared_report=True)
+
+	return {
+		"name": name,
+		"columns": result.get("columns") or [],
+		"rows": result.get("result") or [],
+	}
+
+
+@frappe.whitelist()
+def sweep_preview() -> dict:
+	"""What the bulk sweep would do. Writes nothing."""
+	frappe.only_for("System Manager")
+	from role_advisor import sweep
+
+	rows = sweep.dry_run()
+	ready = [row for row in rows if not row["blocked_reason"]]
+
+	return {
+		"total": len(rows),
+		"ready": ready,
+		"blocked": [row for row in rows if row["blocked_reason"]],
+		"reasons": dict(
+			Counter(
+				"no employee record"
+				if row["blocked_reason"] and "No active Employee" in row["blocked_reason"]
+				else "map row not active"
+				if row["blocked_reason"] and "not active" in row["blocked_reason"]
+				else "no map row"
+				for row in rows
+				if row["blocked_reason"]
+			)
+		),
+	}
+
+
+@frappe.whitelist()
+def sweep_apply(users=None) -> dict:
+	"""Apply the sweep to the named users. System-Manager-only."""
+	frappe.only_for("System Manager")
+	from role_advisor import sweep
+
+	if isinstance(users, str):
+		users = frappe.parse_json(users)
+	if not users:
+		frappe.throw(frappe._("Select at least one user."))
+
+	result = sweep.apply(users=list(users))
+
+	return {k: v for k, v in result.items() if k != "logs"} | {"logs": len(result["logs"])}
+
+
+# ---------------------------------------------------------------------------
+# Delegates and settings.
+# ---------------------------------------------------------------------------
+
+
+@frappe.whitelist()
+def delegate_list() -> list[dict]:
+	_guard()
+
+	rows = frappe.get_all(
+		"Delegated User Admin",
+		fields=["name", "user", "enabled", "can_create_users", "can_disable_users"],
+		limit_page_length=0,
+	)
+	for row in rows:
+		doc = frappe.get_doc("Delegated User Admin", row["name"])
+		row["companies"] = [c.company for c in doc.companies]
+		row["branches"] = [b.branch for b in doc.branches]
+		row["profiles"] = [p.role_profile for p in doc.allowed_role_profiles]
+		row["has_role"] = int(
+			bool(
+				frappe.db.exists(
+					"Has Role",
+					{"parent": row["user"], "parenttype": "User", "role": settings.delegate_role()},
+				)
+			)
+		)
+
+	return rows
+
+
+@frappe.whitelist()
+def delegate_save(user: str, companies=None, profiles=None, enabled=1) -> dict:
+	"""Create or update a delegate, and grant the delegate role if missing.
+
+	The record alone grants nothing - a delegate must also hold the delegate
+	role - so saving one here does both, rather than leaving a record that
+	silently does not work.
+	"""
+	frappe.only_for("System Manager")
+
+	if isinstance(companies, str):
+		companies = frappe.parse_json(companies)
+	if isinstance(profiles, str):
+		profiles = frappe.parse_json(profiles)
+
+	doc = (
+		frappe.get_doc("Delegated User Admin", user)
+		if frappe.db.exists("Delegated User Admin", user)
+		else frappe.new_doc("Delegated User Admin")
+	)
+	doc.user = user
+	doc.enabled = cint(enabled)
+	doc.set("companies", [{"company": c} for c in (companies or [])])
+	doc.set("allowed_role_profiles", [{"role_profile": p} for p in (profiles or [])])
+	doc.save(ignore_permissions=True)
+
+	role = settings.delegate_role()
+	if not frappe.db.exists(
+		"Has Role", {"parent": user, "parenttype": "User", "role": role}
+	):
+		target = frappe.get_doc("User", user)
+		target.append("roles", {"role": role})
+		target.save(ignore_permissions=True)
+
+	frappe.db.commit()
+	delegation.clear_cache()
+
+	return {"user": doc.user, "enabled": doc.enabled, "granted_role": role}
+
+
+@frappe.whitelist()
+def delegate_toggle(user: str, enabled) -> dict:
+	frappe.only_for("System Manager")
+
+	doc = frappe.get_doc("Delegated User Admin", user)
+	doc.enabled = cint(enabled)
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+	delegation.clear_cache()
+
+	return {"user": user, "enabled": doc.enabled}
+
+
+@frappe.whitelist()
+def settings_read() -> dict:
+	_guard()
+
+	return {
+		"seed_mode": settings.seed_mode(),
+		"tie_break_rule": settings.tie_break_rule(),
+		"min_peers_high_confidence": settings.min_peers_high_confidence(),
+		"scope_dimensions": settings.scope_dimensions(),
+		"module_profile_strategy": settings.module_profile_strategy(),
+		"naming_pattern": settings.naming_pattern(),
+		"delegate_role": settings.delegate_role(),
+		"allow_multiple_profiles": settings.allow_multiple_profiles(),
+		"require_employee_link": settings.require_employee_link(),
+		"privileged_doctypes": settings.privileged_doctypes(),
+	}
+
+
+@frappe.whitelist()
+def settings_write(values) -> dict:
+	"""Save the policy fields the dashboard exposes. System-Manager-only."""
+	frappe.only_for("System Manager")
+
+	if isinstance(values, str):
+		values = frappe.parse_json(values)
+
+	editable = {
+		"seed_mode",
+		"tie_break_rule",
+		"min_peers_high_confidence",
+		"module_profile_strategy",
+		"naming_pattern",
+		"allow_multiple_profiles",
+		"require_employee_link",
+		"use_company",
+		"use_branch",
+		"use_department",
+		"use_grade",
+	}
+
+	doc = frappe.get_single("User Access Settings")
+	for key, value in (values or {}).items():
+		if key in editable:
+			doc.set(key, value)
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+	frappe.clear_document_cache("User Access Settings")
+
+	return settings_read()

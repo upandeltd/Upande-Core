@@ -27,7 +27,11 @@ const VIEWS = [
 	{ id: "profiles", label: "Role Profiles", icon: "layers", count: "profiles" },
 	{ id: "modules", label: "Modules", icon: "box", count: "modules" },
 	{ id: "assign", label: "Assign Access", icon: "check" },
+	{ id: "map", label: "Designation Map", icon: "map", count: "map_rows" },
+	{ id: "sweep", label: "Bulk Sweep", icon: "zap" },
+	{ id: "reports", label: "Reports", icon: "file" },
 	{ id: "audit", label: "Audit Trail", icon: "clock", count: "assignments" },
+	{ id: "admin", label: "Delegates & Policy", icon: "shield", count: "delegates" },
 ];
 
 const ICONS = {
@@ -37,11 +41,16 @@ const ICONS = {
 	box: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>',
 	check: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
 	clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+	map: '<polygon points="1 6 8 3 16 6 23 3 23 18 16 21 8 18 1 21 1 6"/><line x1="8" y1="3" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="21"/>',
+	zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+	file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+	shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
 	refresh: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
 };
 
 const esc = (value) => frappe.utils.escape_html(String(value == null ? "" : value));
 const num = (value) => Number(value || 0).toLocaleString();
+const cint = (value) => parseInt(value, 10) || 0;
 
 class AccessDashboard {
 	constructor(page) {
@@ -187,6 +196,305 @@ class AccessDashboard {
 		});
 	}
 
+	// ------------------------------------------------------------- drawer
+
+	drawer(title, subtitle, body) {
+		$(".ra-scrim, .ra-drawer").remove();
+		const $scrim = $('<div class="ra-scrim"></div>').appendTo("body");
+		const $drawer = $(`
+			<div class="ra-drawer ra-dash" role="dialog" aria-modal="true">
+				<div class="ra-drawer__head">
+					<div><h2>${title}</h2>${subtitle ? `<small>${subtitle}</small>` : ""}</div>
+					<button class="ra-close" aria-label="${__("Close")}">✕</button>
+				</div>
+				<div class="ra-drawer__body">${body}</div>
+			</div>`).appendTo("body");
+
+		const close = () => {
+			$drawer.removeClass("open");
+			$scrim.removeClass("open");
+			setTimeout(() => {
+				$drawer.remove();
+				$scrim.remove();
+			}, 260);
+			$(document).off("keydown.ra");
+		};
+		requestAnimationFrame(() => {
+			$drawer.addClass("open");
+			$scrim.addClass("open");
+		});
+		$scrim.on("click", close);
+		$drawer.find(".ra-close").on("click", close);
+		// Escape closes: a drawer you cannot dismiss by keyboard is a trap.
+		$(document).on("keydown.ra", (event) => {
+			if (event.key === "Escape") close();
+		});
+
+		return { $drawer, close };
+	}
+
+	loading_drawer(title) {
+		return this.drawer(title, "", `<div class="ra-empty"><span class="ra-spinner"></span></div>`);
+	}
+
+	async open_user(user) {
+		const { $drawer } = this.loading_drawer(esc(user));
+		let d;
+		try {
+			d = await frappe.xcall("role_advisor.dashboard.user_detail", { user });
+		} catch (error) {
+			$drawer.find(".ra-drawer__body").html(`<div class="ra-empty">${esc(error.message)}</div>`);
+			return;
+		}
+
+		const e = d.employee || {};
+		$drawer.find("h2").text(d.user.full_name || d.user.name);
+		$drawer.find("small").text(d.user.name);
+		$drawer.find(".ra-drawer__body").html(`
+			<div class="ra-card ra-sect">
+				<b>${__("Access")}</b>
+				<dl class="ra-kv">
+					<dt>${__("Role profile")}</dt><dd>${esc(d.profiles.join(", ") || __("none"))}</dd>
+					<dt>${__("Module profile")}</dt><dd>${esc(d.user.module_profile || __("none"))}</dd>
+					<dt>${__("Roles held")}</dt><dd>${num(d.roles.length)}</dd>
+					<dt>${__("Doctypes reachable")}</dt><dd>${num(d.doctypes)}</dd>
+					<dt>${__("Total grants")}</dt><dd>${num(d.grants)}</dd>
+					<dt>${__("User permissions")}</dt><dd>${num(d.permissions.length)}</dd>
+					<dt>${__("Status")}</dt><dd>${d.user.enabled ? __("enabled") : __("disabled")} · ${esc(d.user.user_type)}</dd>
+				</dl>
+				${
+					d.roles_outside_profile.length
+						? `<div class="ra-tag bad" style="margin-top:12px">${__(
+								"{0} roles sit outside every profile — the next save of this user revokes them: {1}",
+								[d.roles_outside_profile.length, esc(d.roles_outside_profile.join(", "))]
+						  )}</div>`
+						: ""
+				}
+			</div>
+			<div class="ra-card ra-sect">
+				<b>${__("Employee")}</b>
+				${
+					d.employee
+						? `<dl class="ra-kv">
+								<dt>${__("Company")}</dt><dd>${esc(e.company || "—")}</dd>
+								<dt>${__("Designation")}</dt><dd>${esc(e.designation || "—")}</dd>
+								<dt>${__("Department")}</dt><dd>${esc(e.department || "—")}</dd>
+								<dt>${__("Branch")}</dt><dd>${esc(e.branch || "—")}</dd>
+								<dt>${__("Grade")}</dt><dd>${esc(e.grade || "—")}</dd>
+						   </dl>`
+						: `<div class="ra-meta">${__(
+								"No active employee record — so no company, and no delegated administrator can reach this user."
+						  )}</div>`
+				}
+			</div>
+			<div class="ra-card ra-sect">
+				<b>${__("Widest grants")}</b>
+				<div class="ra-matrix"><table class="ra-table"><thead><tr><th>${__("Doctype")}</th><th>${__("Rights")}</th></tr></thead><tbody>
+					${
+						d.top_grants.length
+							? d.top_grants
+									.map(
+										(row) =>
+											`<tr><td><b>${esc(row.doctype)}</b></td><td>${row.rights
+												.map((r) => `<span class="ra-badge">${esc(r)}</span>`)
+												.join(" ")}</td></tr>`
+									)
+									.join("")
+							: `<tr><td colspan="2" class="ra-meta">${__("This user's profile grants nothing.")}</td></tr>`
+					}
+				</tbody></table></div>
+			</div>
+			<div class="ra-card ra-sect">
+				<b>${__("Assignment history")}</b>
+				<div class="ra-list">
+					${
+						d.history.length
+							? d.history
+									.map(
+										(row) => `<div class="ra-lrow"><div class="ra-rank">${esc(
+											(row.actor || "?").slice(0, 2).toUpperCase()
+										)}</div><div><div class="ra-name">${esc(row.profiles_before || __("none"))} → ${esc(
+											row.profiles_after || __("none")
+										)}</div><div class="ra-lmeta">${esc(row.trigger)} · ${esc(
+											row.outcome
+										)} · ${frappe.datetime.comment_when(row.creation)}</div></div><div></div></div>`
+									)
+									.join("")
+							: `<div class="ra-meta">${__("Never assigned through Role Advisor.")}</div>`
+					}
+				</div>
+			</div>
+			<button class="ra-btn ra-assign-here">${__("Assign a profile to this user")}</button>
+		`);
+
+		$drawer.find(".ra-assign-here").on("click", () => {
+			$(".ra-scrim").trigger("click");
+			this.pending_user = d.user.name;
+			this.go("assign");
+		});
+	}
+
+	async open_profile(profile) {
+		const { $drawer } = this.loading_drawer(esc(profile));
+		const d = await frappe.xcall("role_advisor.dashboard.profile_detail", { profile });
+
+		$drawer.find("h2").text(d.profile);
+		$drawer
+			.find("small")
+			.text(__("{0} roles · {1} doctypes · {2} grants", [d.roles.length, d.doctypes, d.grants]));
+		$drawer.find(".ra-drawer__body").html(`
+			${
+				d.privileged
+					? `<div class="ra-card ra-sect"><div class="ra-tag bad">${__(
+							"Cannot be delegated — grants {0}",
+							[esc(d.privileged_grants)]
+					  )}</div></div>`
+					: ""
+			}
+			${
+				d.duplicate_of.length
+					? `<div class="ra-card ra-sect"><div class="ra-tag warn">${__(
+							"Identical to {0} — same grants, different name",
+							[esc(d.duplicate_of.join(", "))]
+					  )}</div></div>`
+					: ""
+			}
+			${
+				d.subset_of
+					? `<div class="ra-card ra-sect"><div class="ra-tag flat">${__(
+							"A strict subset of {0}",
+							[esc(d.subset_of)]
+					  )}</div></div>`
+					: ""
+			}
+			<div class="ra-card ra-sect">
+				<b>${__("Roles that compose it")} · ${d.roles.length}</b>
+				<div class="ra-badges">${
+					d.roles.length
+						? d.roles.map((r) => `<span class="ra-badge">${esc(r)}</span>`).join("")
+						: `<span class="ra-meta">${__("none — this profile grants nothing")}</span>`
+				}</div>
+			</div>
+			<div class="ra-card ra-sect">
+				<b>${__("Reach by module")} · ${d.modules.length}</b>
+				<div class="ra-badges">${d.modules
+					.map((m) => `<span class="ra-badge">${esc(m.module)} · ${m.doctypes}</span>`)
+					.join("")}</div>
+			</div>
+			<div class="ra-card ra-sect">
+				<b>${__("Who holds it")} · ${d.holders.length}</b>
+				<div class="ra-matrix"><table class="ra-table"><thead><tr><th>${__("User")}</th><th>${__(
+					"Company"
+				)}</th><th>${__("Designation")}</th></tr></thead><tbody>
+					${
+						d.holders.length
+							? d.holders
+									.map(
+										(h) =>
+											`<tr data-user="${esc(h.user)}"><td><b>${esc(
+												h.full_name || h.user
+											)}</b>${h.enabled ? "" : ` <span class="ra-chip mute">${__("disabled")}</span>`}</td><td>${esc(
+												h.company || "—"
+											)}</td><td>${esc(h.designation || "—")}</td></tr>`
+									)
+									.join("")
+							: `<tr><td colspan="3" class="ra-meta">${__("Nobody holds this profile.")}</td></tr>`
+					}
+				</tbody></table></div>
+			</div>
+			<div class="ra-card ra-sect">
+				<b>${__("Permission matrix")} · ${d.matrix.length} ${__("doctypes")}</b>
+				<div class="ra-matrix"><table class="ra-table"><thead><tr><th>${__("Module")}</th><th>${__(
+					"Doctype"
+				)}</th><th>${__("Rights")}</th></tr></thead><tbody>
+					${d.matrix
+						.map(
+							(row) =>
+								`<tr><td>${esc(row.module)}</td><td><b>${esc(row.doctype)}</b></td><td>${row.rights
+									.map((r) => `<span class="ra-badge">${esc(r)}</span>`)
+									.join(" ")}</td></tr>`
+						)
+						.join("")}
+				</tbody></table></div>
+			</div>
+		`);
+
+		$drawer.find("tr[data-user]").css("cursor", "pointer").on("click", (event) => {
+			this.open_user($(event.currentTarget).data("user"));
+		});
+	}
+
+	async open_module(module) {
+		const { $drawer } = this.loading_drawer(esc(module));
+		const d = await frappe.xcall("role_advisor.dashboard.module_detail", { module });
+
+		$drawer.find("small").text(
+			__("{0} doctypes · {1} users can reach it via {2} profiles", [
+				d.doctypes_total,
+				d.users,
+				d.profiles.length,
+			])
+		);
+		$drawer.find(".ra-drawer__body").html(`
+			<div class="ra-card ra-sect">
+				<b>${__("Profiles that reach this module")}</b>
+				<div class="ra-matrix"><table class="ra-table"><thead><tr><th>${__("Profile")}</th><th class="ra-num">${__(
+					"Doctypes"
+				)}</th><th class="ra-num">${__("Users")}</th></tr></thead><tbody>
+					${d.profiles
+						.map(
+							(row) =>
+								`<tr data-profile="${esc(row.profile)}"><td><b>${esc(
+									row.profile
+								)}</b></td><td class="ra-num">${row.doctypes}</td><td class="ra-num">${row.users}</td></tr>`
+						)
+						.join("")}
+				</tbody></table></div>
+			</div>
+		`);
+		$drawer.find("tr[data-profile]").css("cursor", "pointer").on("click", (event) => {
+			this.open_profile($(event.currentTarget).data("profile"));
+		});
+	}
+
+	async open_log(name) {
+		const { $drawer } = this.loading_drawer(__("Assignment"));
+		const d = await frappe.xcall("role_advisor.dashboard.log_detail", { name });
+		const badges = (text, cls) =>
+			text
+				? text
+						.split(", ")
+						.map((item) => `<span class="ra-badge ${cls}">${esc(item)}</span>`)
+						.join("")
+				: `<span class="ra-meta">${__("none")}</span>`;
+
+		$drawer.find("h2").text(d.target_user);
+		$drawer.find("small").text(
+			__("{0} · by {1} · {2}", [d.outcome, d.actor, frappe.datetime.str_to_user(d.creation)])
+		);
+		$drawer.find(".ra-drawer__body").html(`
+			<div class="ra-card ra-sect">
+				<dl class="ra-kv">
+					<dt>${__("Trigger")}</dt><dd>${esc(d.trigger)}</dd>
+					<dt>${__("Outcome")}</dt><dd>${esc(d.outcome)}</dd>
+					<dt>${__("Profile before")}</dt><dd>${esc(d.profiles_before || __("none"))}</dd>
+					<dt>${__("Profile after")}</dt><dd>${esc(d.profiles_after || __("none"))}</dd>
+					<dt>${__("Module before")}</dt><dd>${esc(d.module_profile_before || __("none"))}</dd>
+					<dt>${__("Module after")}</dt><dd>${esc(d.module_profile_after || __("none"))}</dd>
+				</dl>
+				${d.decision_notes ? `<div class="ra-meta" style="margin-top:12px">${esc(d.decision_notes)}</div>` : ""}
+			</div>
+			<div class="ra-card ra-sect"><b>${__("Roles gained")}</b><div class="ra-badges">${badges(
+				d.roles_gained,
+				"gain"
+			)}</div></div>
+			<div class="ra-card ra-sect"><b>${__("Roles lost")}</b><div class="ra-badges">${badges(
+				d.roles_lost,
+				"loss"
+			)}</div></div>
+		`);
+	}
+
 	async fetch(key, method, args) {
 		if (!this.cache[key]) {
 			this.cache[key] = await frappe.xcall(`role_advisor.dashboard.${method}`, args);
@@ -319,7 +627,9 @@ class AccessDashboard {
 				)
 				.join("")
 		);
-		this.$main.find(".ra-overview-mods .ra-mod").on("click", () => this.go("modules"));
+		this.$main.find(".ra-overview-mods .ra-mod").on("click", (event) =>
+			this.open_module($(event.currentTarget).data("module"))
+		);
 
 		this.$main.find(".ra-findings").html(
 			finds.length
@@ -464,7 +774,7 @@ class AccessDashboard {
 			);
 
 			this.$main.find(".ra-userrows tr[data-user]").on("click", (event) => {
-				frappe.set_route("Form", "User", $(event.currentTarget).data("user"));
+				this.open_user($(event.currentTarget).data("user"));
 			});
 		};
 
@@ -542,7 +852,7 @@ class AccessDashboard {
 			);
 
 			this.$main.find(".ra-proftiles .ra-tile").on("click", (event) => {
-				frappe.set_route("Form", "Role Profile", $(event.currentTarget).data("profile"));
+				this.open_profile($(event.currentTarget).data("profile"));
 			});
 		};
 
@@ -593,9 +903,9 @@ class AccessDashboard {
 				shown
 					.map(
 						(mod) => `
-					<div class="ra-mod ${mod.severity}" title="${esc(mod.module)} · ${num(mod.users)} ${__("users")} · ${
-							mod.profiles
-						} ${__("profiles")}">
+					<div class="ra-mod ${mod.severity}" data-module="${esc(mod.module)}" title="${esc(mod.module)} · ${num(
+							mod.users
+						)} ${__("users")} · ${mod.profiles} ${__("profiles")}">
 						<b>${esc(mod.module)}</b>
 						<small>${num(mod.users)} · ${mod.share}%</small>
 					</div>`
@@ -627,6 +937,9 @@ class AccessDashboard {
 			draw();
 		});
 		draw();
+		this.$main.on("click", ".ra-allmods .ra-mod", (event) =>
+			this.open_module($(event.currentTarget).data("module"))
+		);
 	}
 
 	// --------------------------------------------------------------- assign
@@ -712,6 +1025,12 @@ class AccessDashboard {
 		this.$main.find(".ra-grantable .ra-lrow").on("click", (event) => {
 			this.preview($(event.currentTarget).data("profile"));
 		});
+
+		// Arrived here from a user drawer: pre-select them.
+		if (this.pending_user) {
+			this.user_field.set_value(this.pending_user);
+			this.pending_user = null;
+		}
 	}
 
 	async on_pick_user() {
@@ -831,6 +1150,567 @@ class AccessDashboard {
 		}
 	}
 
+	// ------------------------------------------------------------------ map
+
+	async view_map() {
+		this.$main.html(`
+			${this.head(
+				__("Designation Map"),
+				__("The access level each job title should get, decided once and reused"),
+				`<div class="ra-pillgroup ra-mapfilter">
+					<button class="on" data-f="pending">${__("Awaiting review")}</button>
+					<button data-f="active">${__("Active")}</button>
+					<button data-f="all">${__("All")}</button>
+				</div>`
+			)}
+			<div class="ra-card">
+				<div class="ra-filters">
+					<input class="ra-input ra-msearch" type="search" placeholder="${__("Search designation or profile…")}">
+					<span class="ra-meta ra-mcount"></span>
+					<span class="ra-meta">${__("seeded from observed assignments — evidence, not endorsement")}</span>
+				</div>
+				<div class="ra-tablewrap"><table class="ra-table">
+					<thead><tr>
+						<th>${__("Active")}</th><th>${__("Designation")}</th><th>${__("Company")}</th>
+						<th>${__("Role Profile")}</th><th>${__("Confidence")}</th><th>${__("Evidence")}</th>
+					</tr></thead>
+					<tbody class="ra-maprows"><tr><td colspan="6"><div class="ra-empty"><span class="ra-spinner"></span></div></td></tr></tbody>
+				</table></div>
+			</div>
+		`);
+
+		const [rows, options] = await Promise.all([
+			this.fetch("map", "map_list"),
+			this.fetch("profileopts", "profile_options"),
+		]);
+		const editable = frappe.user.has_role("System Manager");
+
+		const draw = () => {
+			const term = (this.$main.find(".ra-msearch").val() || "").toLowerCase();
+			const filter = this.$main.find(".ra-mapfilter button.on").data("f");
+			const shown = rows.filter((row) => {
+				if (filter === "pending" && row.is_active) return false;
+				if (filter === "active" && !row.is_active) return false;
+				if (!term) return true;
+				return [row.designation, row.role_profile, row.for_company]
+					.filter(Boolean)
+					.some((field) => String(field).toLowerCase().includes(term));
+			});
+
+			this.$main.find(".ra-mcount").text(__("{0} of {1} rows", [shown.length, rows.length]));
+			this.$main.find(".ra-maprows").html(
+				shown.length
+					? shown
+							.map(
+								(row) => `
+					<tr data-name="${esc(row.name)}">
+						<td><label class="ra-switch"><input type="checkbox" class="ra-mapactive" ${
+							row.is_active ? "checked" : ""
+						} ${editable ? "" : "disabled"}><span class="ra-slider"></span></label></td>
+						<td><b>${esc(row.designation)}</b></td>
+						<td>${esc(row.for_company || __("all"))}${
+									row.for_branch ? ` · ${esc(row.for_branch)}` : ""
+								}</td>
+						<td>${
+							editable
+								? `<select class="ra-inlinesel ra-mapprofile">${options
+										.map(
+											(opt) =>
+												`<option value="${esc(opt.profile)}" ${
+													opt.profile === row.role_profile ? "selected" : ""
+												}>${esc(opt.profile)}${opt.privileged ? " ⚠" : ""}</option>`
+										)
+										.join("")}</select>`
+								: esc(row.role_profile)
+						}</td>
+						<td><span class="ra-conf ${esc(row.confidence || "None")}">${esc(
+									row.confidence || "None"
+								)}</span></td>
+						<td class="ra-meta ra-ellipsis" title="${esc(row.evidence || "")}">${esc(
+									row.evidence || "—"
+								)}</td>
+					</tr>`
+							)
+							.join("")
+					: `<tr><td colspan="6"><div class="ra-empty">${__("No rows match.")}</div></td></tr>`
+			);
+
+			this.$main.find(".ra-mapactive").on("change", async (event) => {
+				const $input = $(event.currentTarget);
+				const name = $input.closest("tr").data("name");
+				const value = $input.is(":checked") ? 1 : 0;
+				$input.prop("disabled", true);
+				try {
+					await frappe.xcall("role_advisor.dashboard.map_update", {
+						name,
+						field: "is_active",
+						value,
+					});
+					rows.find((row) => row.name === name).is_active = value;
+					frappe.show_alert({
+						message: value ? __("Row activated") : __("Row deactivated"),
+						indicator: value ? "green" : "orange",
+					});
+					// The sweep and the summary both depend on this.
+					delete this.cache.sweep;
+					this.summary = await frappe.xcall("role_advisor.dashboard.summary");
+				} catch (error) {
+					$input.prop("checked", !value);
+					frappe.msgprint({ title: __("Refused"), message: esc(error.message), indicator: "red" });
+				}
+				$input.prop("disabled", false);
+			});
+
+			this.$main.find(".ra-mapprofile").on("change", async (event) => {
+				const $select = $(event.currentTarget);
+				const name = $select.closest("tr").data("name");
+				try {
+					await frappe.xcall("role_advisor.dashboard.map_update", {
+						name,
+						field: "role_profile",
+						value: $select.val(),
+					});
+					rows.find((row) => row.name === name).role_profile = $select.val();
+					frappe.show_alert({ message: __("Profile updated"), indicator: "green" });
+				} catch (error) {
+					frappe.msgprint({ title: __("Refused"), message: esc(error.message), indicator: "red" });
+				}
+			});
+		};
+
+		this.$main.find(".ra-msearch").on("input", draw);
+		this.$main.find(".ra-mapfilter button").on("click", (event) => {
+			this.$main.find(".ra-mapfilter button").removeClass("on");
+			$(event.currentTarget).addClass("on");
+			draw();
+		});
+		draw();
+	}
+
+	// ---------------------------------------------------------------- sweep
+
+	async view_sweep() {
+		if (!frappe.user.has_role("System Manager")) {
+			this.$main.html(`
+				${this.head(__("Bulk Sweep"), __("Assign profiles in bulk from the map"))}
+				<div class="ra-card"><div class="ra-empty">${__(
+					"The sweep is System-Manager-only. Delegates assign one user at a time under Assign Access."
+				)}</div></div>`);
+			return;
+		}
+
+		this.$main.html(`
+			${this.head(
+				__("Bulk Sweep"),
+				__("Assign every unprofiled user their mapped profile — dry run first, always")
+			)}
+			<div class="ra-kpis ra-sweepkpis"><div class="ra-empty"><span class="ra-spinner"></span></div></div>
+			<div class="ra-card">
+				<div class="ra-card__head">
+					<h3>${__("Ready to assign")}</h3>
+					<div class="ra-meta">${__("only users whose map row is active")}</div>
+				</div>
+				<div class="ra-tablewrap"><table class="ra-table">
+					<thead><tr><th style="width:34px"><input type="checkbox" class="ra-sweepall"></th>
+					<th>${__("User")}</th><th>${__("Designation")}</th><th>${__("Company")}</th><th>${__("Will receive")}</th></tr></thead>
+					<tbody class="ra-sweeprows"></tbody>
+				</table></div>
+				<div style="margin-top:20px;display:flex;gap:10px;align-items:center">
+					<button class="ra-btn ra-sweeprun" disabled>${__("Assign selected")}</button>
+					<span class="ra-meta ra-sweepsel"></span>
+				</div>
+			</div>
+			<div class="ra-card">
+				<div class="ra-card__head"><h3>${__("Blocked")}</h3><div class="ra-meta">${__("why each user cannot be swept yet")}</div></div>
+				<div class="ra-blocked"></div>
+			</div>
+		`);
+
+		const data = await this.fetch("sweep", "sweep_preview");
+
+		this.$main.find(".ra-sweepkpis").html(
+			[
+				[__("Candidates"), num(data.total), __("unprofiled enabled users")],
+				[__("Ready now"), num(data.ready.length), __("map row active")],
+				[__("Blocked"), num(data.blocked.length), __("need a decision first")],
+			]
+				.map(
+					([label, value, unit]) =>
+						`<div class="ra-kpi"><div class="ra-kpi__label">${label}</div><div class="ra-kpi__value">${value}</div><div class="ra-kpi__unit">${unit}</div></div>`
+				)
+				.join("")
+		);
+
+		this.$main.find(".ra-sweeprows").html(
+			data.ready.length
+				? data.ready
+						.map(
+							(row) => `
+				<tr><td><input type="checkbox" class="ra-sweeppick" value="${esc(row.user)}" checked></td>
+				<td><b>${esc(row.full_name || row.user)}</b><div class="ra-lmeta">${esc(row.user)}</div></td>
+				<td>${esc(row.designation || "—")}</td><td>${esc(row.company || "—")}</td>
+				<td><b>${esc(row.role_profile)}</b></td></tr>`
+						)
+						.join("")
+				: `<tr><td colspan="5"><div class="ra-empty">${__(
+						"Nothing is ready. Activate map rows under Designation Map first."
+				  )}</div></td></tr>`
+		);
+
+		this.$main.find(".ra-blocked").html(
+			Object.keys(data.reasons).length
+				? Object.entries(data.reasons)
+						.map(
+							([reason, count]) => `
+					<div class="ra-hb">
+						<div class="ra-hb__name">${esc(reason)}</div>
+						<div class="ra-hb__lane"><div class="ra-hb__fill mid" style="width:${
+							(count / data.total) * 100
+						}%"></div></div>
+						<div class="ra-hb__pct">${count}</div>
+					</div>`
+						)
+						.join("")
+				: `<div class="ra-meta">${__("Nothing blocked.")}</div>`
+		);
+
+		const refresh_selection = () => {
+			const picked = this.$main.find(".ra-sweeppick:checked").length;
+			this.$main.find(".ra-sweeprun").prop("disabled", !picked);
+			this.$main.find(".ra-sweepsel").text(picked ? __("{0} selected", [picked]) : "");
+		};
+		this.$main.on("change", ".ra-sweeppick", refresh_selection);
+		this.$main.find(".ra-sweepall").on("change", (event) => {
+			this.$main.find(".ra-sweeppick").prop("checked", $(event.currentTarget).is(":checked"));
+			refresh_selection();
+		});
+		refresh_selection();
+
+		this.$main.find(".ra-sweeprun").on("click", () => {
+			const users = this.$main
+				.find(".ra-sweeppick:checked")
+				.map((_, el) => el.value)
+				.get();
+
+			frappe.confirm(
+				__(
+					"Assign mapped profiles to {0} users? Each one's current profile is replaced, and every change is logged.",
+					[users.length]
+				),
+				async () => {
+					const $button = this.$main.find(".ra-sweeprun").prop("disabled", true);
+					$button.html(`<span class="ra-spinner"></span> ${__("Assigning…")}`);
+					try {
+						const result = await frappe.xcall("role_advisor.dashboard.sweep_apply", { users });
+						frappe.msgprint({
+							title: __("Sweep complete"),
+							message: __("Applied {0} · no change {1} · skipped {2}", [
+								result.applied,
+								result.no_change,
+								result.skipped,
+							]),
+							indicator: "green",
+						});
+						this.cache = {};
+						this.load();
+					} catch (error) {
+						frappe.msgprint({ title: __("Failed"), message: esc(error.message), indicator: "red" });
+						$button.prop("disabled", false).text(__("Assign selected"));
+					}
+				}
+			);
+		});
+	}
+
+	// -------------------------------------------------------------- reports
+
+	async view_reports() {
+		const names = [
+			"Designation Gap",
+			"Role Profile Overgrant",
+			"Module Exposure",
+			"System Manager Audit",
+			"Role Drift",
+		];
+		this.report_name = this.report_name || names[0];
+
+		this.$main.html(`
+			${this.head(
+				__("Reports"),
+				__("Read-only. None of these changes anything."),
+				`<div class="ra-pillgroup ra-repsel">${names
+					.map(
+						(name) =>
+							`<button class="${name === this.report_name ? "on" : ""}" data-r="${esc(
+								name
+							)}">${__(name)}</button>`
+					)
+					.join("")}</div>`
+			)}
+			<div class="ra-card">
+				<div class="ra-card__head"><h3 class="ra-reptitle">${esc(this.report_name)}</h3><div class="ra-meta ra-repmeta"></div></div>
+				<div class="ra-filters"><input class="ra-input ra-repsearch" type="search" placeholder="${__(
+					"Filter rows…"
+				)}"></div>
+				<div class="ra-tablewrap"><table class="ra-table">
+					<thead class="ra-rephead"></thead>
+					<tbody class="ra-repbody"><tr><td><div class="ra-empty"><span class="ra-spinner"></span></div></td></tr></tbody>
+				</table></div>
+			</div>
+		`);
+
+		const load = async () => {
+			this.$main.find(".ra-reptitle").text(this.report_name);
+			this.$main
+				.find(".ra-repbody")
+				.html(`<tr><td><div class="ra-empty"><span class="ra-spinner"></span></div></td></tr>`);
+
+			const data = await this.fetch(`rep:${this.report_name}`, "report", { name: this.report_name });
+			const columns = data.columns.map((column) => ({
+				field: column.fieldname || column.field || column.label,
+				label: column.label || column.fieldname,
+			}));
+
+			this.$main
+				.find(".ra-rephead")
+				.html(`<tr>${columns.map((c) => `<th>${esc(c.label)}</th>`).join("")}</tr>`);
+
+			const draw = () => {
+				const term = (this.$main.find(".ra-repsearch").val() || "").toLowerCase();
+				const rows = data.rows.filter(
+					(row) =>
+						!term ||
+						columns.some((c) => String(row[c.field] ?? "").toLowerCase().includes(term))
+				);
+				this.$main.find(".ra-repmeta").text(__("{0} of {1} rows", [rows.length, data.rows.length]));
+				this.$main.find(".ra-repbody").html(
+					rows.length
+						? rows
+								.slice(0, 300)
+								.map(
+									(row) =>
+										`<tr>${columns
+											.map((c) => {
+												const value = row[c.field];
+												return `<td style="white-space:normal">${
+													value === 1 && String(c.field).match(/^(is_|has_|self_|privileged|from_map|used_here|orphan|in_no)/)
+														? "✓"
+														: esc(value ?? "")
+												}</td>`;
+											})
+											.join("")}</tr>`
+								)
+								.join("")
+						: `<tr><td colspan="${columns.length}"><div class="ra-empty">${__("No rows.")}</div></td></tr>`
+				);
+			};
+			this.$main.find(".ra-repsearch").off("input").on("input", draw);
+			draw();
+		};
+
+		this.$main.find(".ra-repsel button").on("click", (event) => {
+			this.$main.find(".ra-repsel button").removeClass("on");
+			$(event.currentTarget).addClass("on");
+			this.report_name = $(event.currentTarget).data("r");
+			load();
+		});
+		load();
+	}
+
+	// ---------------------------------------------------------------- admin
+
+	async view_admin() {
+		const sysadmin = frappe.user.has_role("System Manager");
+		this.$main.html(`
+			${this.head(
+				__("Delegates & Policy"),
+				__("Who may administer access, and the rules the app follows")
+			)}
+			<div class="ra-card">
+				<div class="ra-card__head">
+					<h3>${__("Delegated administrators")}</h3>
+					<div class="ra-meta">${__("a record bounds a role holder — it does not replace one")}</div>
+				</div>
+				<div class="ra-delegates"><div class="ra-empty"><span class="ra-spinner"></span></div></div>
+				${
+					sysadmin
+						? `<div style="margin-top:18px"><button class="ra-btn ra-newdelegate">${__(
+								"Add a delegate"
+						  )}</button></div>`
+						: ""
+				}
+			</div>
+			<div class="ra-card">
+				<div class="ra-card__head"><h3>${__("Policy")}</h3><div class="ra-meta">${
+					sysadmin ? __("editable") : __("read-only for you")
+				}</div></div>
+				<div class="ra-policy"><div class="ra-empty"><span class="ra-spinner"></span></div></div>
+			</div>
+		`);
+
+		const [delegates, policy] = await Promise.all([
+			frappe.xcall("role_advisor.dashboard.delegate_list"),
+			frappe.xcall("role_advisor.dashboard.settings_read"),
+		]);
+
+		this.$main.find(".ra-delegates").html(
+			delegates.length
+				? `<div class="ra-tablewrap"><table class="ra-table"><thead><tr>
+						<th>${__("Enabled")}</th><th>${__("User")}</th><th>${__("Companies")}</th>
+						<th>${__("May grant")}</th><th>${__("Has the role")}</th></tr></thead><tbody>
+					${delegates
+						.map(
+							(row) => `
+						<tr data-user="${esc(row.user)}">
+							<td><label class="ra-switch"><input type="checkbox" class="ra-deltoggle" ${
+								row.enabled ? "checked" : ""
+							} ${sysadmin ? "" : "disabled"}><span class="ra-slider"></span></label></td>
+							<td><b>${esc(row.user)}</b></td>
+							<td>${esc(row.companies.join(", ") || "—")}</td>
+							<td>${
+								row.profiles.length
+									? row.profiles.map((p) => `<span class="ra-badge">${esc(p)}</span>`).join(" ")
+									: `<span class="ra-chip bad">${__("empty")}</span>`
+							}</td>
+							<td>${
+								row.has_role
+									? `<span class="ra-chip">${__("yes")}</span>`
+									: `<span class="ra-chip bad">${__("missing — record does nothing")}</span>`
+							}</td>
+						</tr>`
+						)
+						.join("")}
+				</tbody></table></div>`
+				: `<div class="ra-empty">${__(
+						"No delegates yet — so nothing about this site's behaviour has changed."
+				  )}</div>`
+		);
+
+		this.$main.find(".ra-deltoggle").on("change", async (event) => {
+			const $input = $(event.currentTarget);
+			const user = $input.closest("tr").data("user");
+			const enabled = $input.is(":checked") ? 1 : 0;
+			try {
+				await frappe.xcall("role_advisor.dashboard.delegate_toggle", { user, enabled });
+				frappe.show_alert({
+					message: enabled ? __("{0} enabled", [user]) : __("{0} disabled", [user]),
+					indicator: enabled ? "green" : "orange",
+				});
+			} catch (error) {
+				$input.prop("checked", !enabled);
+				frappe.msgprint({ title: __("Refused"), message: esc(error.message), indicator: "red" });
+			}
+		});
+
+		const rows = [
+			[__("Tie-break rule"), policy.tie_break_rule],
+			[__("Min peers for High confidence"), policy.min_peers_high_confidence],
+			[__("Seed mode"), policy.seed_mode],
+			[__("Scope dimensions"), policy.scope_dimensions.join(" → ")],
+			[__("Module profile strategy"), policy.module_profile_strategy],
+			[__("Naming pattern"), policy.naming_pattern],
+			[__("Delegate role"), policy.delegate_role],
+			[__("Multiple profiles per user"), policy.allow_multiple_profiles ? __("allowed") : __("one only")],
+			[__("Employee link required"), policy.require_employee_link ? __("yes") : __("no")],
+			[__("Privileged doctypes"), policy.privileged_doctypes.join(", ")],
+		];
+		this.$main.find(".ra-policy").html(
+			`<dl class="ra-kv" style="grid-template-columns:250px 1fr">${rows
+				.map(([label, value]) => `<dt>${label}</dt><dd>${esc(value)}</dd>`)
+				.join("")}</dl>` +
+				(sysadmin
+					? `<div style="margin-top:18px;display:flex;gap:10px;align-items:center">
+							<select class="ra-select ra-tiebreak">
+								${["Tightest by permission count", "Majority peer vote", "Always flag"]
+									.map(
+										(option) =>
+											`<option ${option === policy.tie_break_rule ? "selected" : ""}>${option}</option>`
+									)
+									.join("")}
+							</select>
+							<input class="ra-input ra-minpeers" type="number" min="1" max="50" style="min-width:120px"
+								value="${policy.min_peers_high_confidence}">
+							<button class="ra-btn ra-savepolicy">${__("Save policy")}</button>
+					   </div>`
+					: "")
+		);
+
+		this.$main.find(".ra-savepolicy").on("click", async (event) => {
+			const $button = $(event.currentTarget).prop("disabled", true);
+			try {
+				await frappe.xcall("role_advisor.dashboard.settings_write", {
+					values: {
+						tie_break_rule: this.$main.find(".ra-tiebreak").val(),
+						min_peers_high_confidence: cint(this.$main.find(".ra-minpeers").val()),
+					},
+				});
+				frappe.show_alert({ message: __("Policy saved"), indicator: "green" });
+				this.cache = {};
+			} catch (error) {
+				frappe.msgprint({ title: __("Refused"), message: esc(error.message), indicator: "red" });
+			}
+			$button.prop("disabled", false);
+		});
+
+		this.$main.find(".ra-newdelegate").on("click", () => this.new_delegate());
+	}
+
+	new_delegate() {
+		const dialog = new frappe.ui.Dialog({
+			title: __("Add a delegated administrator"),
+			fields: [
+				{
+					fieldtype: "Link",
+					options: "User",
+					fieldname: "user",
+					label: __("User"),
+					reqd: 1,
+					description: __("They will also be granted the delegate role, since the record alone grants nothing."),
+				},
+				{
+					fieldtype: "MultiSelectList",
+					fieldname: "companies",
+					label: __("Companies they administer"),
+					reqd: 1,
+					get_data: (txt) =>
+						frappe.db.get_link_options("Company", txt).then((options) => options),
+				},
+				{
+					fieldtype: "MultiSelectList",
+					fieldname: "profiles",
+					label: __("Profiles they may grant"),
+					description: __("Privileged profiles are refused even if listed here."),
+					get_data: (txt) =>
+						frappe.db.get_link_options("Role Profile", txt).then((options) => options),
+				},
+			],
+			primary_action_label: __("Create"),
+			primary_action: async (values) => {
+				try {
+					const result = await frappe.xcall("role_advisor.dashboard.delegate_save", {
+						user: values.user,
+						companies: (values.companies || []).map((c) => c.value || c),
+						profiles: (values.profiles || []).map((p) => p.value || p),
+						enabled: 1,
+					});
+					dialog.hide();
+					frappe.show_alert({
+						message: __("{0} is now a delegate, with the {1} role", [
+							result.user,
+							result.granted_role,
+						]),
+						indicator: "green",
+					});
+					this.cache = {};
+					this.load();
+				} catch (error) {
+					frappe.msgprint({ title: __("Refused"), message: esc(error.message), indicator: "red" });
+				}
+			},
+		});
+		dialog.show();
+	}
+
 	// ---------------------------------------------------------------- audit
 
 	async view_audit() {
@@ -874,7 +1754,7 @@ class AccessDashboard {
 		);
 
 		this.$main.find(".ra-auditrows .ra-lrow").on("click", (event) => {
-			frappe.set_route("Form", "Access Assignment Log", $(event.currentTarget).data("log"));
+			this.open_log($(event.currentTarget).data("log"));
 		});
 	}
 }

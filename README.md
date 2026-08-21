@@ -63,7 +63,16 @@ from stored data it is not drawn.
 | `Role Profiles` | tiles flagging privileged and grants-nothing profiles |
 | `Modules` | exposure grid plus a ranked detail list |
 | `Assign Access` | the three-step flow: who → what → confirm, with the full role diff |
+| `Designation Map` | activate rows and repoint profiles inline, with the evidence beside each |
+| `Bulk Sweep` | dry-run, tick who to include, apply — System-Manager-only |
+| `Reports` | all five reports rendered in place, searchable |
 | `Audit Trail` | every assignment, newest first |
+| `Delegates & Policy` | add and toggle delegates, read and edit policy |
+
+Clicking a user, profile, module or log row opens a **drawer** with everything
+the desk form would have shown — grants, holders, permission matrix, history —
+so the dashboard rarely needs to hand off. Drawers cross-link: a profile lists
+its holders, and clicking one opens that user.
 
 Views deep-link: `/desk/access-dashboard/assign` opens straight into assignment,
 so a link can be shared.

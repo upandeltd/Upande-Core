@@ -124,6 +124,120 @@ class TestDashboard(IntegrationTestCase):
 			),
 		)
 
+	def test_user_detail_gathers_everything_a_desk_form_would_show(self):
+		detail = dashboard.user_detail(IN_SCOPE)
+
+		for key in ("user", "employee", "profiles", "roles", "grants", "permissions", "history"):
+			self.assertIn(key, detail)
+		self.assertEqual(detail["user"]["name"], IN_SCOPE)
+
+	def test_user_detail_refuses_a_target_outside_a_delegate_scope(self):
+		from role_advisor.tests.test_delegation import OUT_OF_SCOPE
+
+		frappe.set_user(ADMIN)
+		delegation.clear_cache()
+
+		with self.assertRaises(frappe.PermissionError):
+			dashboard.user_detail(OUT_OF_SCOPE)
+
+	def test_profile_detail_reports_duplicates_and_the_matrix(self):
+		profile = frappe.get_all("Role Profile", pluck="name", limit=1)[0]
+		detail = dashboard.profile_detail(profile)
+
+		self.assertEqual(detail["profile"], profile)
+		self.assertEqual(len(detail["matrix"]), detail["doctypes"])
+		self.assertIsInstance(detail["duplicate_of"], list)
+
+	def test_module_detail_lists_the_profiles_that_reach_it(self):
+		detail = dashboard.module_detail("Core")
+
+		self.assertEqual(detail["module"], "Core")
+		self.assertGreater(detail["doctypes_total"], 0)
+		for row in detail["profiles"]:
+			self.assertLessEqual(row["doctypes"], detail["doctypes_total"])
+
+	def test_map_update_only_accepts_the_three_safe_fields(self):
+		"""The dashboard must not become a document editor with no validation."""
+		rows = dashboard.map_list()
+		if not rows:
+			self.skipTest("no map rows seeded")
+
+		with self.assertRaises(frappe.ValidationError):
+			dashboard.map_update(rows[0]["name"], "designation", "anything")
+
+	def test_map_update_toggles_active(self):
+		rows = dashboard.map_list()
+		if not rows:
+			self.skipTest("no map rows seeded")
+		name = rows[0]["name"]
+		before = frappe.db.get_value("Designation Access Map", name, "is_active")
+
+		dashboard.map_update(name, "is_active", 0 if before else 1)
+		self.assertNotEqual(
+			frappe.db.get_value("Designation Access Map", name, "is_active"), before
+		)
+		dashboard.map_update(name, "is_active", before)
+
+	def test_only_this_apps_reports_can_be_run(self):
+		with self.assertRaises(frappe.ValidationError):
+			dashboard.report("Permitted Documents For User")
+
+	def test_a_report_returns_columns_and_rows(self):
+		result = dashboard.report("Designation Gap")
+
+		self.assertEqual(result["name"], "Designation Gap")
+		self.assertTrue(result["columns"])
+		self.assertIsInstance(result["rows"], list)
+
+	def test_sweep_preview_writes_nothing(self):
+		before = frappe.db.count("User Role Profile")
+
+		preview = dashboard.sweep_preview()
+
+		self.assertEqual(frappe.db.count("User Role Profile"), before)
+		self.assertEqual(preview["total"], len(preview["ready"]) + len(preview["blocked"]))
+
+	def test_sweep_and_policy_are_system_manager_only(self):
+		frappe.set_user(ADMIN)
+		delegation.clear_cache()
+
+		for call in (
+			lambda: dashboard.sweep_preview(),
+			lambda: dashboard.sweep_apply(users=[IN_SCOPE]),
+			lambda: dashboard.settings_write({"min_peers_high_confidence": 9}),
+			lambda: dashboard.delegate_save(user=IN_SCOPE),
+		):
+			with self.assertRaises(frappe.PermissionError):
+				call()
+
+	def test_delegate_save_also_grants_the_role(self):
+		"""A record with no role silently does nothing, so saving does both."""
+		target = "_ra_new_delegate@example.com"
+		if not frappe.db.exists("User", target):
+			frappe.get_doc(
+				{"doctype": "User", "email": target, "first_name": "New", "send_welcome_email": 0}
+			).insert(ignore_permissions=True)
+
+		result = dashboard.delegate_save(
+			user=target, companies=[self.companies[0]], profiles=[]
+		)
+
+		self.assertEqual(result["user"], target)
+		self.assertTrue(
+			frappe.db.exists(
+				"Has Role",
+				{"parent": target, "parenttype": "User", "role": result["granted_role"]},
+			)
+		)
+		frappe.delete_doc("Delegated User Admin", target, force=True)
+
+	def test_settings_write_ignores_fields_it_does_not_expose(self):
+		before = dashboard.settings_read()["delegate_role"]
+
+		dashboard.settings_write({"delegate_role": "System Manager"})
+
+		self.assertEqual(dashboard.settings_read()["delegate_role"], before)
+
 	def test_the_page_is_installed_with_both_admin_roles(self):
 		self.assertTrue(frappe.db.exists("Page", "access-dashboard"))
 
