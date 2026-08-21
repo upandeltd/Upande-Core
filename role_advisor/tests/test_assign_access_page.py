@@ -1,6 +1,8 @@
 # Copyright (c) 2026, ghost-mann and contributors
 # For license information, please see license.txt
 
+import json
+
 import frappe
 from frappe.tests import IntegrationTestCase
 
@@ -83,6 +85,41 @@ class TestConsolePage(IntegrationTestCase):
 		self.assertEqual(
 			entry["has_permission"], "role_advisor.permissions.has_app_permission"
 		)
+
+	def test_the_desk_home_carries_an_icon_for_the_app(self):
+		"""The apps screen is built from Desktop Icon records, not from the hook.
+
+		Frappe generates them from `add_to_apps_screen` on install; a site that
+		installed this app before the hook existed needs the patch, which is why
+		this asserts on the record and not on the hook.
+		"""
+		icon = frappe.db.get_value(
+			"Desktop Icon",
+			{"icon_type": "App", "app": "role_advisor"},
+			["label", "link", "logo_url", "hidden"],
+			as_dict=True,
+		)
+
+		self.assertIsNotNone(icon, "Role Advisor has no desk icon")
+		self.assertEqual(icon.label, "Role Advisor")
+		self.assertEqual(icon.link, "/desk/access-dashboard")
+		self.assertEqual(icon.logo_url, "/assets/role_advisor/images/role-advisor-logo.svg")
+		self.assertFalse(icon.hidden)
+
+	def test_a_saved_desk_arrangement_gains_the_icon(self):
+		"""Frappe renders a stored Desktop Layout instead of the live icon list,
+		so a new icon stays invisible to anyone who has ever arranged their home
+		screen. The patch appends it; this asserts it landed."""
+		layouts = frappe.get_all("Desktop Layout", pluck="name")
+		if not layouts:
+			self.skipTest("nobody on this site has arranged their desk home")
+
+		for name in layouts:
+			layout = json.loads(frappe.db.get_value("Desktop Layout", name, "layout") or "[]")
+			self.assertTrue(
+				any(row.get("name") == "Role Advisor" for row in layout),
+				f"{name} would never see the app",
+			)
 
 	def test_the_short_url_lands_on_the_dashboard(self):
 		"""`/role-advisor` is the address to give someone."""
