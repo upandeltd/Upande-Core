@@ -26,6 +26,7 @@ from frappe.utils import nowdate
 from role_advisor import capability
 
 SECTION_PROFILE = "PROFILE"
+SECTION_USER = "· USER"
 SECTION_ROLE = "· ROLE"
 SECTION_PERMISSION = "· · PERMISSION"
 SECTION_ADD = "+ ADD"
@@ -35,12 +36,15 @@ KEEP_OPTIONS = ["Keep", "Remove", "Change", "New"]
 HEAD_BG = "#37474F"
 EDIT_BG = "#8D6E00"
 PROFILE_BG = "#CFD8DC"
+USER_BG = "#E0F2F1"
 ROLE_BG = "#E8EAF6"
 ADD_BG = "#FFF8E1"
 
 COLUMNS = (
 	("section", 16, 0),
 	("role_profile", 46, 0),
+	("user", 34, 0),
+	("user_context", 40, 0),
 	("role", 34, 0),
 	("doctype", 34, 0),
 	("read", 7, 0),
@@ -97,11 +101,24 @@ def gather() -> dict:
 	):
 		profile_roles[row["parent"]].append(row["role"])
 
-	users = defaultdict(int)
-	for row in frappe.get_all(
-		"User Role Profile", filters={"parenttype": "User"}, fields=["role_profile"]
+	# Who holds each profile, with the context a module owner needs to judge
+	# whether that person should reach their module at all.
+	holders = defaultdict(list)
+	for row in frappe.db.sql(
+		"""
+		select p.role_profile as role_profile, u.name as user, u.full_name as full_name,
+		       e.company as company, e.designation as designation
+		from `tabUser Role Profile` p
+		join `tabUser` u on u.name = p.parent and u.enabled = 1
+		left join `tabEmployee` e on e.user_id = u.name and e.status = 'Active'
+		where p.parenttype = 'User'
+		order by e.company, u.full_name
+		""",
+		as_dict=True,
 	):
-		users[row["role_profile"]] += 1
+		holders[row["role_profile"]].append(row)
+
+	users = {profile: len(rows) for profile, rows in holders.items()}
 
 	all_roles = frappe.get_all("Role", pluck="name")
 	role_caps = capability._capabilities_from_rows(
@@ -133,6 +150,7 @@ def gather() -> dict:
 		"role_caps": role_caps,
 		"module_of": module_of,
 		"users": users,
+		"holders": holders,
 	}
 
 
@@ -158,7 +176,21 @@ def module_rows(module: str, data: dict) -> list[dict]:
 			}
 		)
 
-		# Area one: the roles composing this profile that reach this module.
+		# Area one: who actually holds this profile, and so reaches this module.
+		for holder in data["holders"].get(profile, []):
+			context = " · ".join(
+				part for part in (holder.get("company"), holder.get("designation")) if part
+			)
+			rows.append(
+				{
+					"section": SECTION_USER,
+					"role_profile": profile,
+					"user": holder["user"],
+					"user_context": context or "(no active employee record)",
+				}
+			)
+
+		# Area two: the roles composing this profile that reach this module.
 		for role in sorted(data["profile_roles"].get(profile, [])):
 			if module not in data["role_modules"].get(role, set()):
 				continue
@@ -180,7 +212,7 @@ def module_rows(module: str, data: dict) -> list[dict]:
 			{"section": SECTION_ADD, "role_profile": profile, "role": "", "keep": "New"}
 		)
 
-		# Area two: the resulting permissions on this module's doctypes.
+		# Area three: the resulting permissions on this module's doctypes.
 		for doctype in sorted(granted):
 			row = {
 				"section": SECTION_PERMISSION,
@@ -211,6 +243,13 @@ def overview_rows(data: dict, tabs: dict[str, str]) -> list[dict]:
 				"sheet": tabs[module],
 				"doctypes_in_module": doctypes_per_module.get(module, 0),
 				"profiles_touching": len(profiles),
+				"users_with_access": len(
+					{
+						holder["user"]
+						for profile in profiles
+						for holder in data["holders"].get(profile, [])
+					}
+				),
 				"permission_rows": sum(len(v) for v in profiles.values()),
 				"owner": "",
 				"status": "",
@@ -226,6 +265,7 @@ OVERVIEW_COLUMNS = (
 	("sheet", 34, 0),
 	("doctypes_in_module", 18, 0),
 	("profiles_touching", 18, 0),
+	("users_with_access", 18, 0),
 	("permission_rows", 16, 0),
 	("owner", 26, 1),
 	("status", 16, 1),
@@ -259,6 +299,46 @@ def profile_index_rows(data: dict) -> list[dict]:
 	return sorted(rows, key=lambda row: -row["modules_spanned"])
 
 
+USERS_BY_MODULE_COLUMNS = (
+	("module", 30, 0),
+	("user", 34, 0),
+	("full_name", 24, 0),
+	("company", 20, 0),
+	("designation", 26, 0),
+	("role_profile", 42, 0),
+	("doctypes_reachable", 18, 0),
+	("keep", 11, 1),
+	("notes", 34, 1),
+)
+
+
+def users_by_module_rows(data: dict) -> list[dict]:
+	"""One row per (module, user) - the flat answer to "who can reach my module".
+
+	A user may hold a profile granting several doctypes in a module; this counts
+	them so an owner can tell a light toucher from a heavy one.
+	"""
+	rows = []
+	for module in sorted(data["by_module"]):
+		for profile, granted in sorted(data["by_module"][module].items()):
+			for holder in data["holders"].get(profile, []):
+				rows.append(
+					{
+						"module": module,
+						"user": holder["user"],
+						"full_name": holder.get("full_name"),
+						"company": holder.get("company"),
+						"designation": holder.get("designation"),
+						"role_profile": profile,
+						"doctypes_reachable": len(granted),
+						"keep": "",
+						"notes": "",
+					}
+				)
+
+	return rows
+
+
 def build(path: str | None = None) -> str:
 	"""Write the module-owner workbook and return its path."""
 	import xlsxwriter
@@ -277,6 +357,7 @@ def build(path: str | None = None) -> str:
 	head = book.add_format({"bold": True, "bg_color": HEAD_BG, "font_color": "white", "border": 1})
 	edit_head = book.add_format({"bold": True, "bg_color": EDIT_BG, "font_color": "white", "border": 1})
 	profile_fmt = book.add_format({"bold": True, "bg_color": PROFILE_BG})
+	user_fmt = book.add_format({"bg_color": USER_BG})
 	role_fmt = book.add_format({"bg_color": ROLE_BG})
 	add_fmt = book.add_format({"bg_color": ADD_BG, "italic": True})
 
@@ -314,10 +395,12 @@ def build(path: str | None = None) -> str:
 		return sheet
 
 	write_sheet("Overview", OVERVIEW_COLUMNS, overview_rows(data, tabs))
+	write_sheet("Users by Module", USERS_BY_MODULE_COLUMNS, users_by_module_rows(data))
 	write_sheet("Profile Index", PROFILE_INDEX_COLUMNS, profile_index_rows(data))
 
 	formats = {
 		SECTION_PROFILE: profile_fmt,
+		SECTION_USER: user_fmt,
 		SECTION_ROLE: role_fmt,
 		SECTION_ADD: add_fmt,
 	}

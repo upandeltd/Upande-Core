@@ -33,10 +33,11 @@ class TestModuleWorkbook(IntegrationTestCase):
 	def test_there_is_a_sheet_for_every_module_with_grants(self):
 		expected = len(self.data["by_module"])
 
-		# Overview and Profile Index sit in front of the module tabs.
-		self.assertEqual(len(self.book.sheetnames), expected + 2)
-		self.assertEqual(self.book.sheetnames[0], "Overview")
-		self.assertEqual(self.book.sheetnames[1], "Profile Index")
+		# Three cross-cutting tabs sit in front of the module tabs.
+		self.assertEqual(len(self.book.sheetnames), expected + 3)
+		self.assertEqual(
+			self.book.sheetnames[:3], ["Overview", "Users by Module", "Profile Index"]
+		)
 
 	def test_tab_names_are_unique_and_within_the_excel_limit(self):
 		for name in self.book.sheetnames:
@@ -78,6 +79,57 @@ class TestModuleWorkbook(IntegrationTestCase):
 
 		self.assertTrue(header["also_on_sheets"], f"{spread} spans many modules")
 		self.assertNotIn(module, header["also_on_sheets"].split(", "))
+
+	def test_each_profile_block_lists_the_users_who_hold_it(self):
+		"""A module owner's first question is who can reach their module."""
+		module = next(
+			m for m, profiles in self.data["by_module"].items()
+			if any(self.data["holders"].get(p) for p in profiles)
+		)
+		rows = module_workbook.module_rows(module, self.data)
+		users = [r for r in rows if r["section"] == module_workbook.SECTION_USER]
+
+		self.assertTrue(users, f"{module} has profiles with holders")
+		for row in users:
+			self.assertTrue(row["user"])
+			self.assertTrue(row["user_context"], "context must never be blank")
+
+	def test_user_rows_come_before_the_roles_and_permissions(self):
+		"""Block order is PROFILE -> USERS -> ROLES -> PERMISSIONS."""
+		module = next(
+			m for m, profiles in self.data["by_module"].items()
+			if any(self.data["holders"].get(p) for p in profiles)
+		)
+		order = [r["section"] for r in module_workbook.module_rows(module, self.data)]
+		first_user = order.index(module_workbook.SECTION_USER)
+		first_perm = order.index(module_workbook.SECTION_PERMISSION)
+
+		self.assertLess(first_user, first_perm)
+
+	def test_overview_counts_distinct_users_per_module(self):
+		rows = {r["module"]: r for r in module_workbook.overview_rows(self.data, {m: m for m in self.data["by_module"]})}
+		module = max(rows, key=lambda m: rows[m]["users_with_access"])
+
+		expected = len(
+			{
+				holder["user"]
+				for profile in self.data["by_module"][module]
+				for holder in self.data["holders"].get(profile, [])
+			}
+		)
+
+		self.assertEqual(rows[module]["users_with_access"], expected)
+
+	def test_users_by_module_sheet_has_a_row_per_module_user_profile(self):
+		rows = module_workbook.users_by_module_rows(self.data)
+		expected = sum(
+			len(self.data["holders"].get(profile, []))
+			for profiles in self.data["by_module"].values()
+			for profile in profiles
+		)
+
+		self.assertEqual(len(rows), expected)
+		self.assertTrue(all(r["module"] and r["user"] for r in rows))
 
 	def test_add_rows_are_present_for_owner_input(self):
 		module = sorted(self.data["by_module"])[0]

@@ -72,11 +72,20 @@ duplicate and subset analysis plus proposed canonical names from
 bench --site <site> execute role_advisor.module_workbook.build
 ```
 
-`docs/module-owner-workbook-<date>.xlsx`. An `Overview` tab, a `Profile Index`
-tab, then one tab per module. Inside each module tab, one block per role profile
-touching that module, and within each block two grouped areas — the **ROLES**
-composing the profile, and the **PERMISSIONS** they grant on that module's
-doctypes — with `+ ADD` rows for the owner to extend.
+`docs/module-owner-workbook-<date>.xlsx`. Three cross-cutting tabs —
+`Overview` (each module with its doctype count, profiles touching it and
+**distinct users with access**), `Users by Module` (one row per module, user and
+profile, with company and designation), and `Profile Index` — then one tab per
+module.
+
+Inside each module tab, one block per role profile touching that module, and
+within each block three grouped areas:
+
+- **USERS** — who actually holds the profile, with company and designation
+- **ROLES** — the roles composing it that reach this module
+- **PERMISSIONS** — what those roles grant on this module's doctypes
+
+`+ ADD` rows let the owner extend each area.
 
 Columns marked `(EDITABLE)` are inert, parked for a future importer.
 
