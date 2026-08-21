@@ -26,9 +26,12 @@ add_to_apps_screen = [
 ]
 
 # `/role-advisor` is the address to give someone. It lands on the same page.
+# The dashboard lives on upande_core's portal page now, so the short URLs land
+# there. `/my-access` still points at this app's desk page - self-service has
+# not moved yet.
 website_redirects = [
-	{"source": "/role-advisor", "target": "/desk/access-dashboard"},
-	{"source": "/role_advisor", "target": "/desk/access-dashboard"},
+	{"source": "/role-advisor", "target": "/it-dashboard"},
+	{"source": "/role_advisor", "target": "/it-dashboard"},
 	{"source": "/my-access", "target": "/desk/my-access"},
 ]
 
