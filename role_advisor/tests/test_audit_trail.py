@@ -247,3 +247,48 @@ class TestAttribution(IntegrationTestCase):
 		)
 
 		self.assertEqual(rows[0]["source"], "external")
+
+
+class TestEventAndSummary(IntegrationTestCase):
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def test_event_returns_the_raw_blob_behind_a_row(self):
+		name = frappe.db.get_value(
+			"Version", {"ref_doctype": "User"}, "name", order_by="creation desc"
+		)
+		if not name:
+			self.skipTest("no User versions on this site")
+
+		out = audit_trail.event(name)
+
+		self.assertEqual(out["version"], name)
+		self.assertIn("raw", out)
+		self.assertIsInstance(out["raw"], dict)
+
+	def test_event_refuses_a_doctype_outside_the_access_set(self):
+		name = frappe.db.get_value(
+			"Version", {"ref_doctype": ("not in", audit_trail.ACCESS_DOCTYPES)}, "name"
+		)
+		if not name:
+			self.skipTest("no non-access versions on this site")
+
+		with self.assertRaises(frappe.PermissionError):
+			audit_trail.event(name)
+
+	def test_summary_groups_by_actor_and_doctype(self):
+		out = audit_trail.summary()
+
+		self.assertIn("by_actor", out)
+		self.assertIn("by_doctype", out)
+		self.assertIn("window", out)
+		self.assertIsInstance(out["by_actor"], list)
+
+	def test_summary_is_guarded(self):
+		ensure_user("_ra_summary_nobody@example.com")
+		frappe.set_user("_ra_summary_nobody@example.com")
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				audit_trail.summary()
+		finally:
+			frappe.set_user("Administrator")

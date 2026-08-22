@@ -333,3 +333,104 @@ def trail(
 		"attribution": "heuristic",
 		"limits": {"history_floor": HISTORY_FLOOR, "uncovered": list(UNCOVERED)},
 	}
+
+
+@frappe.whitelist()
+def event(version: str) -> dict:
+	"""Everything behind one trail row, including the events that cancelled.
+
+	The netted view is what makes the trail readable; this is what makes it
+	provable. An auditor asking "what did the database actually record" gets
+	the unabridged blob.
+	"""
+	dashboard._guard()
+
+	row = frappe.db.get_value(
+		"Version",
+		version,
+		["name", "owner", "ref_doctype", "docname", "data", "creation"],
+		as_dict=True,
+	)
+	if not row:
+		frappe.throw(f"No version {version}.", frappe.DoesNotExistError)
+	if row.ref_doctype not in ACCESS_DOCTYPES:
+		frappe.throw(f"{row.ref_doctype} is not an access doctype.", frappe.PermissionError)
+
+	try:
+		raw = json.loads(row.data or "{}")
+	except (ValueError, TypeError):
+		raw = {}
+
+	logins = (
+		frappe.db.sql(
+			"""
+			select operation, status, ip_address, creation
+			from `tabActivity Log`
+			where user = %(user)s and creation between %(start)s and %(end)s
+			order by creation desc limit 20
+			""",
+			{
+				"user": row.docname,
+				"start": frappe.utils.add_to_date(row.creation, hours=-12),
+				"end": frappe.utils.add_to_date(row.creation, hours=12),
+			},
+			as_dict=True,
+		)
+		if row.ref_doctype == "User"
+		else []
+	)
+
+	return {
+		"version": row.name,
+		"when": row.creation,
+		"actor": row.owner,
+		"doctype": row.ref_doctype,
+		"document": row.docname,
+		"delta": _delta(row.data, row.ref_doctype),
+		"raw": raw,
+		"logins": logins,
+	}
+
+
+@frappe.whitelist()
+def summary(start: str | None = None, end: str | None = None) -> dict:
+	"""Who has been changing access, and to what.
+
+	Counts version rows rather than netted changes: this is a cheap orientation
+	query, and making it exact would mean parsing every row in the window.
+	"""
+	dashboard._guard()
+	start, end = _window(start, end, None)
+
+	params = {
+		"doctypes": ACCESS_DOCTYPES,
+		"start": f"{start} 00:00:00",
+		"end": f"{end} 23:59:59",
+	}
+
+	by_actor = frappe.db.sql(
+		"""
+		select v.owner as actor, u.full_name as actor_name, count(*) as changes
+		from `tabVersion` v
+		left join `tabUser` u on u.name = v.owner
+		where v.ref_doctype in %(doctypes)s and v.creation between %(start)s and %(end)s
+		group by v.owner, u.full_name
+		order by changes desc limit 25
+		""",
+		params,
+		as_dict=True,
+	)
+
+	by_doctype = frappe.db.sql(
+		"""
+		select v.ref_doctype as doctype, count(*) as changes
+		from `tabVersion` v
+		where v.ref_doctype in %(doctypes)s and v.creation between %(start)s and %(end)s
+		group by v.ref_doctype
+		order by changes desc
+		""",
+		params,
+		as_dict=True,
+	)
+
+	return {"by_actor": by_actor, "by_doctype": by_doctype, "window": {"start": start, "end": end}}
