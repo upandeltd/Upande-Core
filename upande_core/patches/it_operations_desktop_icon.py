@@ -61,7 +61,20 @@ def _ensure_new() -> dict | None:
 		return None
 	entry = entries[0]
 
-	if not frappe.db.exists("Desktop Icon", {"icon_type": "App", "app": "upande_core"}):
+	existing = frappe.db.get_value(
+		"Desktop Icon", {"icon_type": "App", "app": "upande_core"}, "name"
+	)
+	if existing:
+		# Reconcile rather than skip: the route and the logo have both changed
+		# since this patch first ran, and a site that already has the icon would
+		# otherwise keep pointing at the old destination for ever.
+		frappe.db.set_value(
+			"Desktop Icon",
+			existing,
+			{"label": entry["title"], "link": entry["route"], "logo_url": entry["logo"]},
+			update_modified=False,
+		)
+	else:
 		frappe.get_doc(
 			{
 				"doctype": "Desktop Icon",
@@ -96,13 +109,22 @@ def _fix_layouts(icon: dict) -> None:
 		if not isinstance(layout, list):
 			continue
 
-		kept = [
-			row
-			for row in layout
-			if isinstance(row, dict)
-			and row.get("app") != OLD_APP
-			and row.get("name") != OLD_LABEL
-		]
+		# A stored layout holds a *copy* of each icon's fields, so changing the
+		# icon changes nothing on screen. The entry is replaced rather than
+		# merely inserted-if-absent, or a route change never reaches anyone who
+		# has arranged their apps screen.
+		kept = []
+		for row in layout:
+			if not isinstance(row, dict):
+				continue
+			if row.get("app") == OLD_APP or row.get("name") == OLD_LABEL:
+				continue
+			if row.get("app") == "upande_core":
+				# Keep where they put it; refresh what it points at.
+				kept.append({**entry, "idx": row.get("idx", entry.get("idx")),
+				             "parent_icon": row.get("parent_icon")})
+				continue
+			kept.append(row)
 		if not any(row.get("app") == "upande_core" for row in kept):
 			kept.append(entry)
 

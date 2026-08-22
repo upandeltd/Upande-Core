@@ -114,15 +114,19 @@ fixtures = [
 
 # required_apps = []
 
-# IT Operations is one page and one door. The tile used to belong to
-# role_advisor and pointed at its desk page; that page is no longer the UI, so
-# the entry moved here along with the dashboard.
+# The tile opens the workspace, not the dashboard. The workspace is where the
+# desk sidebar lives and where the records behind the page are listed, so
+# landing there gives somebody a choice of what to open; landing straight in the
+# dashboard takes that choice away and hides everything else the app has.
+#
+# The Upande mark rather than an app-specific one: this is Upande's tile on
+# Upande's apps screen, and every sibling app uses the same logo.
 add_to_apps_screen = [
 	{
 		"name": "upande_core",
-		"logo": "/assets/upande_core/images/it-operations-logo.svg",
+		"logo": "/assets/upande_core/images/upande-logo.png",
 		"title": "IT Operations",
-		"route": "/it-dashboard",
+		"route": "/desk/it-operations",
 		"has_permission": "upande_core.permissions.has_app_permission",
 	}
 ]
