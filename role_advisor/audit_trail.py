@@ -52,6 +52,42 @@ INTEREST_FIELDS = frozenset(
 # makes the IT dashboard's version_flat useless for access auditing.
 CHILD_VALUE_KEY = {"roles": "role", "role_profiles": "role_profile", "block_modules": "module"}
 
+# Fields whose change matters but whose value must never be reported. The trail
+# is readable by every System Manager and every delegate, so printing a key here
+# would hand it to all of them - and `Version` stores api_key in clear.
+REDACTED_FIELDS = frozenset({"api_key", "api_secret"})
+
+
+def _redact(value) -> str:
+	"""Whether a credential was set, never what it was set to."""
+	return "(hidden)" if value else "(none)"
+
+
+def _scrub(blob: dict) -> dict:
+	"""The raw blob with credential values removed.
+
+	`event()` exists to prove what the database recorded, but `Version` stores
+	api_key in clear and the drawer is readable by delegates. Everything else is
+	returned untouched, including the events that cancelled.
+	"""
+	if not isinstance(blob, dict):
+		return blob
+
+	out = dict(blob)
+	for key in ("changed", "row_changed"):
+		rows = out.get(key)
+		if not isinstance(rows, list):
+			continue
+		scrubbed = []
+		for entry in rows:
+			if key == "changed" and isinstance(entry, list) and entry and entry[0] in REDACTED_FIELDS:
+				scrubbed.append([entry[0], _redact(entry[1] if len(entry) > 1 else None),
+				                 _redact(entry[2] if len(entry) > 2 else None)])
+			else:
+				scrubbed.append(entry)
+		out[key] = scrubbed
+	return out
+
 
 def _child_multisets(blob: dict) -> tuple[dict, dict]:
 	"""Added and removed child rows as multisets of their meaningful value.
@@ -106,6 +142,8 @@ def _delta(data: str, ref_doctype: str) -> dict | None:
 			# v15 kept the profile in a scalar field. Canonicalised here so a
 			# v15 change and a v16 child-table change read identically.
 			profile_before, profile_after = old, new
+		elif name in REDACTED_FIELDS:
+			fields.append((name, _redact(old), _redact(new)))
 		else:
 			fields.append((name, old, new))
 
@@ -381,7 +419,7 @@ def event(version: str) -> dict:
 		frappe.throw(f"{row.ref_doctype} is not an access doctype.", frappe.PermissionError)
 
 	try:
-		raw = json.loads(row.data or "{}")
+		raw = _scrub(json.loads(row.data or "{}"))
 	except (ValueError, TypeError):
 		raw = {}
 

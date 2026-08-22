@@ -30,6 +30,35 @@ class TestDeltaScalarFields(UnitTestCase):
 		self.assertIn(("enabled", 1, 0), delta["fields"])
 		self.assertIn(("user_type", "System User", "Website User"), delta["fields"])
 
+	def test_credential_values_are_never_reported(self):
+		"""The trail says a key changed. Printing the key would leak it to every reader."""
+		data = json.dumps(
+			{"changed": [["api_key", None, "e2ea86571e07357"], ["api_secret", "old", "new"]]}
+		)
+
+		delta = audit_trail._delta(data, "User")
+		flat = str(delta["fields"])
+
+		self.assertNotIn("e2ea86571e07357", flat)
+		self.assertNotIn("old", flat)
+		self.assertNotIn("new", flat)
+		self.assertIn(("api_key", "(none)", "(hidden)"), delta["fields"])
+		self.assertIn(("api_secret", "(hidden)", "(hidden)"), delta["fields"])
+
+	def test_the_raw_blob_does_not_carry_credentials_either(self):
+		"""event() proves what was recorded, but must not hand out the key itself."""
+		blob = {
+			"changed": [["api_key", None, "SECRETKEY123"], ["enabled", 1, 0]],
+			"added": [["roles", {"role": "Employee"}]],
+		}
+
+		out = audit_trail._scrub(blob)
+
+		self.assertNotIn("SECRETKEY123", str(out))
+		self.assertIn(["api_key", "(none)", "(hidden)"], out["changed"])
+		self.assertIn(["enabled", 1, 0], out["changed"])
+		self.assertEqual(out["added"], blob["added"])
+
 	def test_ordinary_churn_is_dropped_entirely(self):
 		data = json.dumps(
 			{"changed": [["birth_date", "1990-01-01", "1990-01-02"], ["last_active", "a", "b"]]}
