@@ -73,3 +73,40 @@ page through everything can do so without deep offsets.
 - **Attribution is heuristic** — a 2-second window against `Access Assignment Log`. With 13 log
   rows against 75,768 version rows, almost everything reads `external`, which is the finding
   rather than a defect.
+
+## Driven in a browser, 2026-08-22
+
+Chrome via `playwright-core` against `http://localhost:8002/it-dashboard`, logged in with a
+real cookie session as a throwaway System Manager (created, used, deleted).
+
+| Step | Result |
+|---|---|
+| Page loads, session is a real user | ok — `session user: ra-verify@example.com` |
+| `Audit Trail` nav entry present | ok — 25 nav entries, `trail` between `audit` and `admin` |
+| Heading and rows render | ok — **7 shown from 50 scanned** |
+| Limits panel renders | ok — both uncovered lines plus the attribution caveat |
+| Row expands | ok — drawer with net delta, fields, sign-ins, raw blob |
+| Range filter 7/30/90 | ok |
+| `Assignment Log` still works | ok |
+| Console errors | **none** |
+
+The trail caught the verification user's own creation while the driver was running:
+`ra-verify@example.com · outside Role Advisor · +System Manager · user_type: Website User →
+System User`. A privilege grant made outside the app, surfaced without being told to look.
+
+### Two defects only driving it could find
+
+**`frappe.ui.Dialog` does not work on this page.** The row-expand threw
+`frappe.ui.form.make_control is not a function` and nothing opened. The page is served from
+`www/`, where the desk form bundle is absent — which is why every other detail view here uses
+the app's own `drawer()`. Fixed by doing the same. Unit tests could never have caught this;
+the endpoint was fine and the JS only fails in a browser.
+
+**The trail printed an API key in clear.** `Version` stores `api_key` unmasked, and the row
+rendered `api_key: → e2ea86571e07357` — a live credential, in a view every System Manager and
+every delegate can read. `api_key` and `api_secret` now report `(none)` / `(hidden)` in both the
+netted row and `event()`'s raw blob. The trail says a credential changed, never what to.
+
+Note that `Version` also masks `api_secret` itself (`***…`), so only `api_key` was genuinely
+exposed — but both are redacted, because relying on upstream masking is not a security property
+this app should assume.
