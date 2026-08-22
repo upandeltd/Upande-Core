@@ -17,7 +17,7 @@ import json
 import frappe
 from frappe.utils import add_days, cint, getdate, nowdate
 
-from role_advisor import dashboard
+from role_advisor import capability, dashboard
 
 ACCESS_DOCTYPES = ("User", "Role", "Role Profile", "Module Profile", "Property Setter")
 
@@ -434,3 +434,86 @@ def summary(start: str | None = None, end: str | None = None) -> dict:
 	)
 
 	return {"by_actor": by_actor, "by_doctype": by_doctype, "window": {"start": start, "end": end}}
+
+
+def _current_roles(user: str) -> list[str]:
+	return frappe.get_all("Has Role", filters={"parent": user, "parenttype": "User"}, pluck="role")
+
+
+def _rewind(state: dict, chain: list[dict]) -> dict:
+	"""Undo each delta, newest first, to arrive at the state before them all."""
+	for delta in chain:
+		for role in delta.get("roles_gained") or []:
+			state["roles"].discard(role)
+		for role in delta.get("roles_lost") or []:
+			state["roles"].add(role)
+		before = delta.get("profile_before")
+		if before:
+			state["profiles"] = [part.strip() for part in before.split(",") if part.strip()]
+	return state
+
+
+@frappe.whitelist()
+def as_of(user: str, date: str) -> dict:
+	"""What this user could do on `date`, worked back from what they hold now.
+
+	Reconstruction, not a recording: it is only as complete as `Version` is, so
+	`limits` travels with the answer and `exact` is false whenever the walk
+	crossed something it could not account for. A reconstruction that looks
+	authoritative while being silently partial is worse than none.
+	"""
+	admin = dashboard._guard()
+	scoped = dashboard._scoped_users(admin)
+	if scoped is not None and user not in scoped:
+		frappe.throw(f"{user} is not in your scope.")
+
+	date = str(getdate(date))
+	notes = []
+	exact = True
+
+	if getdate(date) < getdate(HISTORY_FLOOR):
+		notes.append(
+			f"Requested {date} is before the history floor {HISTORY_FLOOR}; "
+			"this is the earliest state on record, not the state on that date."
+		)
+		exact = False
+		date = HISTORY_FLOOR
+
+	state = {
+		"roles": set(_current_roles(user)),
+		"profiles": capability.get_user_role_profiles(user),
+		"module_profile": frappe.db.get_value("User", user, "module_profile"),
+	}
+
+	chain = []
+	page = 0
+	while True:
+		versions, has_more = _fetch(
+			date, str(getdate(nowdate())), user, None, "User", MAX_PAGE_SIZE, page * MAX_PAGE_SIZE
+		)
+		for version in versions:
+			delta = _delta(version.data, version.ref_doctype)
+			if delta is None:
+				if version.data and not _is_parseable(version.data):
+					exact = False
+				continue
+			chain.append({**delta, "version": version.name, "when": version.creation})
+		if not has_more:
+			break
+		page += 1
+
+	_rewind(state, chain)
+
+	notes.extend(UNCOVERED)
+	return {
+		"user": user,
+		"date": date,
+		"state": {
+			"roles": sorted(state["roles"]),
+			"profiles": state["profiles"],
+			"module_profile": state["module_profile"],
+		},
+		"chain": chain,
+		"limits": {"history_floor": HISTORY_FLOOR, "notes": notes},
+		"exact": exact,
+	}

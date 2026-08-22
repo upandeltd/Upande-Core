@@ -292,3 +292,59 @@ class TestEventAndSummary(IntegrationTestCase):
 				audit_trail.summary()
 		finally:
 			frappe.set_user("Administrator")
+
+
+class TestReconstruction(IntegrationTestCase):
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def test_today_reconstructs_to_current_state(self):
+		target = ensure_user("_ra_asof_target@example.com")
+
+		out = audit_trail.as_of(target, frappe.utils.nowdate())
+
+		self.assertEqual(out["user"], target)
+		self.assertEqual(set(out["state"]["roles"]), set(audit_trail._current_roles(target)))
+
+	def test_a_gained_role_is_removed_walking_backwards(self):
+		"""Replaying a gain backwards must take the role away again."""
+		state = {"roles": {"Employee", "Expense Approver"}, "profiles": [], "module_profile": None}
+		chain = [{"roles_gained": ["Expense Approver"], "roles_lost": [], "profile_before": None}]
+
+		audit_trail._rewind(state, chain)
+
+		self.assertNotIn("Expense Approver", state["roles"])
+		self.assertIn("Employee", state["roles"])
+
+	def test_a_lost_role_is_restored_walking_backwards(self):
+		state = {"roles": {"Employee"}, "profiles": [], "module_profile": None}
+		chain = [{"roles_gained": [], "roles_lost": ["Stock User"], "profile_before": None}]
+
+		audit_trail._rewind(state, chain)
+
+		self.assertIn("Stock User", state["roles"])
+
+	def test_the_profile_is_rolled_back_to_before(self):
+		state = {"roles": set(), "profiles": ["Agriculture Supervisor"], "module_profile": None}
+		chain = [{"roles_gained": [], "roles_lost": [], "profile_before": "Clerk"}]
+
+		audit_trail._rewind(state, chain)
+
+		self.assertEqual(state["profiles"], ["Clerk"])
+
+	def test_a_date_before_the_floor_is_flagged_not_extrapolated(self):
+		target = ensure_user("_ra_asof_floor@example.com")
+
+		out = audit_trail.as_of(target, "2024-01-01")
+
+		self.assertFalse(out["exact"])
+		self.assertIn("floor", " ".join(out["limits"]["notes"]).lower())
+
+	def test_reconstruction_is_guarded(self):
+		ensure_user("_ra_asof_nobody@example.com")
+		frappe.set_user("_ra_asof_nobody@example.com")
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				audit_trail.as_of("Administrator", frappe.utils.nowdate())
+		finally:
+			frappe.set_user("Administrator")
