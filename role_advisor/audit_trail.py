@@ -221,8 +221,50 @@ def _fetch(start, end, target, actor, doctype, limit, offset) -> tuple[list[dict
 
 
 def _attribute(rows: list[dict]) -> list[dict]:
+	"""Did this change go through Role Advisor, or around it?
+
+	Matched on target and timestamp proximity, because nothing stamps an
+	identifier onto the write. The window is deliberately tight: a bulk sweep
+	touching many users inside one second could otherwise claim a concurrent
+	external edit. Every caller is told the attribution is heuristic.
+	"""
+	if not rows:
+		return rows
+
+	targets = {row["document"] for row in rows if row.get("document")}
+	logs = (
+		frappe.get_all(
+			"Access Assignment Log",
+			filters={"target_user": ("in", list(targets))},
+			fields=["name", "target_user", "trigger", "outcome", "creation"],
+			limit_page_length=0,
+		)
+		if targets
+		else []
+	)
+
+	by_target: dict[str, list[dict]] = {}
+	for log in logs:
+		by_target.setdefault(log["target_user"], []).append(log)
+
 	for row in rows:
-		row["source"] = "external"
+		match = None
+		for log in by_target.get(row.get("document"), []):
+			gap = abs((row["when"] - log["creation"]).total_seconds())
+			if gap <= ATTRIBUTION_WINDOW_SECONDS:
+				match = log
+				break
+
+		if match:
+			row["source"] = "role_advisor"
+			row["assignment_log"] = match["name"]
+			row["trigger"] = match["trigger"]
+			row["outcome"] = match["outcome"]
+		elif row.get("updater_reference"):
+			row["source"] = "system"
+		else:
+			row["source"] = "external"
+
 	return rows
 
 

@@ -178,3 +178,72 @@ class TestTrailEndpoint(IntegrationTestCase):
 				audit_trail.trail()
 		finally:
 			frappe.set_user("Administrator")
+
+
+class TestAttribution(IntegrationTestCase):
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def test_an_unmatched_human_change_is_external(self):
+		rows = audit_trail._attribute(
+			[
+				{
+					"document": "_ra_attr_nobody@example.com",
+					"when": frappe.utils.now_datetime(),
+					"updater_reference": None,
+				}
+			]
+		)
+
+		self.assertEqual(rows[0]["source"], "external")
+
+	def test_a_change_matching_an_assignment_log_is_ours(self):
+		from role_advisor import audit
+
+		target = ensure_user("_ra_attr_target@example.com")
+		name = audit.log_assignment(
+			target,
+			{"profiles": [], "module_profile": None, "roles": set()},
+			{"profiles": ["X"], "module_profile": None, "roles": set()},
+			audit.TRIGGER_MANUAL,
+		)
+		when = frappe.db.get_value("Access Assignment Log", name, "creation")
+
+		rows = audit_trail._attribute(
+			[{"document": target, "when": when, "updater_reference": None}]
+		)
+
+		self.assertEqual(rows[0]["source"], "role_advisor")
+		self.assertEqual(rows[0]["assignment_log"], name)
+		self.assertEqual(rows[0]["trigger"], audit.TRIGGER_MANUAL)
+
+	def test_a_code_driven_change_is_system(self):
+		rows = audit_trail._attribute(
+			[
+				{
+					"document": "_ra_attr_nobody@example.com",
+					"when": frappe.utils.now_datetime(),
+					"updater_reference": {"doctype": "Patch Log", "label": "some.patch"},
+				}
+			]
+		)
+
+		self.assertEqual(rows[0]["source"], "system")
+
+	def test_a_change_outside_the_window_is_not_claimed(self):
+		from role_advisor import audit
+
+		target = ensure_user("_ra_attr_far@example.com")
+		audit.log_assignment(
+			target,
+			{"profiles": [], "module_profile": None, "roles": set()},
+			{"profiles": ["X"], "module_profile": None, "roles": set()},
+			audit.TRIGGER_MANUAL,
+		)
+		long_ago = frappe.utils.add_to_date(frappe.utils.now_datetime(), hours=-6)
+
+		rows = audit_trail._attribute(
+			[{"document": target, "when": long_ago, "updater_reference": None}]
+		)
+
+		self.assertEqual(rows[0]["source"], "external")
