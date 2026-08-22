@@ -52,83 +52,78 @@ class TestConsolePage(IntegrationTestCase):
 			"a Page on the workspace's own route can never be reached",
 		)
 
-	def test_the_workspace_is_a_door_and_not_a_second_navigation(self):
-		"""Everything the app does is in the app's own sidebar.
+	def test_the_workspace_is_hidden_now_that_the_ui_moved(self):
+		"""The workspace was the door to this app's own page; that page is retired.
 
-		Listing it again on the workspace gave two navigations that could
-		disagree, and the desk one always won because it loads first. The
-		workspace keeps exactly one entry: the way in.
+		It is hidden rather than deleted, so a site that rolls the merge back still
+		has it. It must carry no link cards: a second navigation that could
+		disagree with the real one is the thing this avoids.
 		"""
 		self.assertTrue(frappe.db.exists("Workspace", "User Access"))
-
-		shortcuts = frappe.get_all(
-			"Workspace Shortcut", filters={"parent": "User Access"}, pluck="link_to"
+		self.assertTrue(
+			frappe.db.get_value("Workspace", "User Access", "is_hidden"),
+			"the workspace still advertises a page that is no longer the UI",
 		)
-		self.assertEqual(shortcuts, ["access-dashboard"])
 
 		links = frappe.get_all(
 			"Workspace Link", filters={"parent": "User Access"}, pluck="link_to"
 		)
 		self.assertEqual(links, [], "the workspace should carry no link cards")
 
-	def test_the_app_appears_on_the_apps_screen_with_a_route_that_exists(self):
-		entries = frappe.get_hooks("add_to_apps_screen", app_name="role_advisor")
+	def test_the_app_no_longer_claims_an_apps_screen_entry(self):
+		"""The tile belongs to whichever app owns the UI, and that is not this one.
 
-		self.assertEqual(len(entries), 1)
-		entry = entries[0]
-		self.assertEqual(entry["title"], "Role Advisor")
-		self.assertEqual(entry["route"], "/desk/access-dashboard")
-		self.assertTrue(
-			frappe.db.exists("Page", entry["route"].rsplit("/", 1)[-1]),
-			"the apps screen points at a page that does not exist",
-		)
-		self.assertEqual(
-			entry["has_permission"], "role_advisor.permissions.has_app_permission"
-		)
+		Two tiles onto one page was the confusing part, so this app dropped its
+		entry when the dashboard merged. Asserted rather than assumed, because a
+		reinstated hook would silently put the second tile back.
+		"""
+		self.assertEqual(frappe.get_hooks("add_to_apps_screen", app_name="role_advisor"), [])
 
-	def test_the_desk_home_carries_an_icon_for_the_app(self):
-		"""The apps screen is built from Desktop Icon records, not from the hook.
+	def test_the_app_leaves_no_desk_icon_of_its_own(self):
+		"""The icon pointed at a desk page that is no longer the UI.
 
-		Frappe generates them from `add_to_apps_screen` on install; a site that
-		installed this app before the hook existed needs the patch, which is why
-		this asserts on the record and not on the hook.
+		Deliberately says nothing about the app that now owns the tile: this
+		suite has to pass with this app installed on its own.
 		"""
 		icon = frappe.db.get_value(
-			"Desktop Icon",
-			{"icon_type": "App", "app": "role_advisor"},
-			["label", "link", "logo_url", "hidden"],
-			as_dict=True,
+			"Desktop Icon", {"icon_type": "App", "app": "role_advisor"}, "name"
 		)
 
-		self.assertIsNotNone(icon, "Role Advisor has no desk icon")
-		self.assertEqual(icon.label, "Role Advisor")
-		self.assertEqual(icon.link, "/desk/access-dashboard")
-		self.assertEqual(icon.logo_url, "/assets/role_advisor/images/role-advisor-logo.svg")
-		self.assertFalse(icon.hidden)
+		self.assertIsNone(icon, "a stale Role Advisor tile would open the retired page")
 
-	def test_a_saved_desk_arrangement_gains_the_icon(self):
-		"""Frappe renders a stored Desktop Layout instead of the live icon list,
-		so a new icon stays invisible to anyone who has ever arranged their home
-		screen. The patch appends it; this asserts it landed."""
+	def test_a_saved_desk_arrangement_keeps_no_stale_entry(self):
+		"""Frappe renders a stored Desktop Layout instead of the live icon list.
+
+		So a deleted icon keeps showing to anyone who has ever arranged their home
+		screen, which is why the removal had to reach into the stored layouts too.
+		"""
 		layouts = frappe.get_all("Desktop Layout", pluck="name")
 		if not layouts:
 			self.skipTest("nobody on this site has arranged their desk home")
 
 		for name in layouts:
 			layout = json.loads(frappe.db.get_value("Desktop Layout", name, "layout") or "[]")
-			self.assertTrue(
-				any(row.get("name") == "Role Advisor" for row in layout),
-				f"{name} would never see the app",
-			)
+			stale = [
+				row
+				for row in layout
+				if isinstance(row, dict)
+				and (row.get("app") == "role_advisor" or row.get("name") == "Role Advisor")
+			]
+			self.assertEqual(stale, [], f"{name} still shows a tile for the retired page")
 
-	def test_the_short_url_lands_on_the_dashboard(self):
-		"""`/role-advisor` is the address to give someone."""
+	def test_the_short_url_lands_on_the_merged_page(self):
+		"""`/role-advisor` is still the address to give someone.
+
+		It no longer lands on this app's own desk page: the UI moved into the IT
+		dashboard, and the redirect followed it. `/my-access` did not move - it is
+		the one surface a non-administrator uses, and it is still a desk page.
+		"""
 		targets = {
 			row["source"]: row["target"]
 			for row in frappe.get_hooks("website_redirects", app_name="role_advisor")
 		}
 
-		self.assertEqual(targets["/role-advisor"], "/desk/access-dashboard")
+		self.assertEqual(targets["/role-advisor"], "/it-dashboard")
 		self.assertEqual(targets["/my-access"], "/desk/my-access")
 
 	def test_the_apps_screen_shows_the_app_to_an_administrator(self):
