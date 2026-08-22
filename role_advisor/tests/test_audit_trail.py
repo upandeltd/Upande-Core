@@ -348,3 +348,21 @@ class TestReconstruction(IntegrationTestCase):
 				audit_trail.as_of("Administrator", frappe.utils.nowdate())
 		finally:
 			frappe.set_user("Administrator")
+
+	def test_a_truncated_walk_says_so_rather_than_implying_completeness(self):
+		"""The busiest user has 17,745 versions. A bounded walk must admit it stopped."""
+		busiest = frappe.db.sql(
+			"""
+			select docname, count(*) c from `tabVersion`
+			where ref_doctype='User' group by docname order by c desc limit 1
+			""",
+			as_dict=True,
+		)
+		if not busiest or busiest[0]["c"] <= audit_trail.MAX_REWIND_VERSIONS:
+			self.skipTest("no user busy enough to truncate the walk")
+
+		out = audit_trail.as_of(busiest[0]["docname"], audit_trail.HISTORY_FLOOR)
+
+		self.assertFalse(out["exact"])
+		self.assertLessEqual(out["scanned"], audit_trail.MAX_REWIND_VERSIONS)
+		self.assertIn("stopped after reading", " ".join(out["limits"]["notes"]).lower())

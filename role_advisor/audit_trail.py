@@ -27,6 +27,12 @@ MAX_UNTARGETED_DAYS = 90
 ATTRIBUTION_WINDOW_SECONDS = 2
 HISTORY_FLOOR = "2025-10-08"
 
+# A rewind walk parses every version row for the user, and the busiest user on
+# this site has 17,745 of them across ten months - of which exactly one carried
+# a net access change. Parsing all of them costs ~35s to learn almost nothing,
+# so the walk is bounded and says when it stopped early rather than hanging.
+MAX_REWIND_VERSIONS = 4000
+
 # Stated with every response. A trail that looks complete while being silently
 # partial is worse than none.
 UNCOVERED = (
@@ -184,8 +190,21 @@ def _window(start: str | None, end: str | None, target: str | None) -> tuple[str
 	return start, end
 
 
-def _fetch(start, end, target, actor, doctype, limit, offset) -> tuple[list[dict], bool]:
-	"""A page of version rows, newest first. One extra row answers has_more."""
+def _fetch(start, end, target, actor, doctype, limit, offset=0, before=None):
+	"""A page of version rows, newest first. One extra row answers has_more.
+
+	Two things here are load-bearing, both measured on kaitet.local:
+
+	`use index (creation)` when there is no target. Left to itself the optimiser
+	switches to `ref_doctype_docname_index` once the range passes ~30 days -
+	175,062 rows and a filesort, 10.8s - where the creation index walks 4,158
+	rows in 0.15s. The access doctypes are 0.62% of the table, so walking
+	newest-first and filtering is always the cheaper plan.
+
+	`before` is keyset pagination, for callers that page through everything.
+	`data` averages 64.8KB per row, so a deep offset re-reads and discards
+	megabytes of LONGTEXT per page.
+	"""
 	doctypes = (doctype,) if doctype in ACCESS_DOCTYPES else ACCESS_DOCTYPES
 
 	conditions = ["v.ref_doctype in %(doctypes)s", "v.creation between %(start)s and %(end)s"]
@@ -202,12 +221,17 @@ def _fetch(start, end, target, actor, doctype, limit, offset) -> tuple[list[dict
 	if actor:
 		conditions.append("v.owner = %(actor)s")
 		params["actor"] = actor
+	if before:
+		conditions.append("v.creation < %(before)s")
+		params["before"] = before
+
+	hint = "" if target else "use index (creation)"
 
 	rows = frappe.db.sql(
 		f"""
 		select v.name, v.owner, v.ref_doctype, v.docname, v.data, v.creation,
 		       u.full_name as actor_name
-		from `tabVersion` v
+		from `tabVersion` v {hint}
 		left join `tabUser` u on u.name = v.owner
 		where {" and ".join(conditions)}
 		order by v.creation desc
@@ -485,22 +509,31 @@ def as_of(user: str, date: str) -> dict:
 		"module_profile": frappe.db.get_value("User", user, "module_profile"),
 	}
 
+	# One query, not a paged walk. Measured on the busiest user (3,764 versions
+	# in 90 days): a single fetch of all of them costs 4.7s, while the same rows
+	# in eight 500-row pages cost 30s. Projecting the JSON server-side to cut
+	# 166MB down to 9MB was tried and is worse still - 14.9s - because MariaDB
+	# spends more time parsing the JSON than the transfer saves.
+	versions, has_more = _fetch(
+		date, str(getdate(nowdate())), user, None, "User", MAX_REWIND_VERSIONS
+	)
+	scanned = len(versions)
+
 	chain = []
-	page = 0
-	while True:
-		versions, has_more = _fetch(
-			date, str(getdate(nowdate())), user, None, "User", MAX_PAGE_SIZE, page * MAX_PAGE_SIZE
+	for version in versions:
+		delta = _delta(version.data, version.ref_doctype)
+		if delta is None:
+			if version.data and not _is_parseable(version.data):
+				exact = False
+			continue
+		chain.append({**delta, "version": version.name, "when": version.creation})
+
+	if has_more:
+		notes.append(
+			f"Stopped after reading {scanned} changes for this user; there are more. "
+			"Anything older than the oldest change listed is not accounted for."
 		)
-		for version in versions:
-			delta = _delta(version.data, version.ref_doctype)
-			if delta is None:
-				if version.data and not _is_parseable(version.data):
-					exact = False
-				continue
-			chain.append({**delta, "version": version.name, "when": version.creation})
-		if not has_more:
-			break
-		page += 1
+		exact = False
 
 	_rewind(state, chain)
 
@@ -514,6 +547,7 @@ def as_of(user: str, date: str) -> dict:
 			"module_profile": state["module_profile"],
 		},
 		"chain": chain,
+		"scanned": scanned,
 		"limits": {"history_floor": HISTORY_FLOOR, "notes": notes},
 		"exact": exact,
 	}
