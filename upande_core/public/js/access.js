@@ -3700,39 +3700,87 @@ class App {
 	}
 
 	/* The netted row is what makes the trail readable; the raw blob is what
-	   makes it provable, cancelled events and all. */
+	   makes it provable, cancelled events and all.
+
+	   A drawer, not frappe.ui.Dialog: this page is served from www/, where the
+	   desk form bundle is absent and Dialog dies on
+	   `frappe.ui.form.make_control is not a function`. Every other detail view
+	   here uses the drawer for the same reason. */
 	async open_trail_event(version) {
-		const d = await frappe.xcall("role_advisor.audit_trail.event", { version: version });
+		const { $drawer } = this.loading_drawer(__("Change"));
 
-		const dialog = new frappe.ui.Dialog({
-			title: __("Change on {0}", [d.document]),
-			size: "large",
-			fields: [{ fieldtype: "HTML", fieldname: "body" }],
-		});
+		let d;
+		try {
+			d = await frappe.xcall("role_advisor.audit_trail.event", { version: version });
+		} catch (error) {
+			$drawer.find(".ra-drawer__body").html(`<div class="ra-empty">${esc(error.message)}</div>`);
+			return;
+		}
 
-		dialog.fields_dict.body.$wrapper.html(`
-			<div class="ra-lmeta">${__("by")} ${esc(d.actor)} · ${frappe.datetime.str_to_user(d.when)} · ${esc(
-				d.doctype
-			)}</div>
+		$drawer.find("h2").text(d.document);
+		$drawer
+			.find("small")
+			.text(
+				__("{0} · by {1} · {2}", [d.doctype, d.actor, frappe.datetime.str_to_user(d.when)])
+			);
+
+		const delta = d.delta || {};
+		const badges = (items, cls) =>
+			items && items.length
+				? items.map((item) => `<span class="ra-badge ${cls}">${esc(item)}</span>`).join("")
+				: `<span class="ra-meta">${__("none")}</span>`;
+
+		$drawer.find(".ra-drawer__body").html(`
+			<div class="ra-card ra-sect">
+				<dl class="ra-kv">
+					<dt>${__("Profile before")}</dt><dd>${esc(delta.profile_before || __("none"))}</dd>
+					<dt>${__("Profile after")}</dt><dd>${esc(delta.profile_after || __("none"))}</dd>
+					<dt>${__("Roles gained")}</dt><dd>${badges(delta.roles_gained, "good")}</dd>
+					<dt>${__("Roles lost")}</dt><dd>${badges(delta.roles_lost, "loss")}</dd>
+					<dt>${__("Modules blocked")}</dt><dd>${badges(delta.modules_blocked, "")}</dd>
+					<dt>${__("Modules unblocked")}</dt><dd>${badges(delta.modules_unblocked, "")}</dd>
+				</dl>
+			</div>
 			${
-				d.logins && d.logins.length
-					? `<h5 style="margin-top:12px">${__("Sign-ins either side of this change")}</h5>
-						<div class="ra-lmeta">${d.logins
-							.map(
-								(l) =>
-									`${esc(l.operation)} ${esc(l.status)} · ${esc(l.ip_address || "—")} · ${frappe.datetime.str_to_user(
-										l.creation
-									)}`
-							)
-							.join("<br>")}</div>`
+				delta.fields && delta.fields.length
+					? `<div class="ra-card ra-sect">
+							<div class="ra-card__head"><h3>${__("Fields")}</h3></div>
+							<dl class="ra-kv">${delta.fields
+								.map(
+									(f) =>
+										`<dt>${esc(f[0])}</dt><dd>${esc(String(f[1] === null ? "—" : f[1]))} → ${esc(
+											String(f[2] === null ? "—" : f[2])
+										)}</dd>`
+								)
+								.join("")}</dl>
+						</div>`
 					: ""
 			}
-			<h5 style="margin-top:12px">${__("What the database recorded")}</h5>
-			<pre style="max-height:340px;overflow:auto;font-size:11px">${esc(
-				JSON.stringify(d.raw, null, 1)
-			)}</pre>
+			${
+				d.logins && d.logins.length
+					? `<div class="ra-card ra-sect">
+							<div class="ra-card__head"><h3>${__("Sign-ins either side of this change")}</h3></div>
+							<div class="ra-lmeta">${d.logins
+								.map(
+									(l) =>
+										`${esc(l.operation)} ${esc(l.status)} · ${esc(
+											l.ip_address || "—"
+										)} · ${frappe.datetime.str_to_user(l.creation)}`
+								)
+								.join("<br>")}</div>
+						</div>`
+					: ""
+			}
+			<div class="ra-card ra-sect">
+				<div class="ra-card__head">
+					<h3>${__("What the database recorded")}</h3>
+					<div class="ra-meta">${__("including the events that cancelled")}</div>
+				</div>
+				<pre class="ra-raw" style="max-height:320px;overflow:auto;font-size:11px;white-space:pre-wrap">${esc(
+					JSON.stringify(d.raw, null, 1)
+				)}</pre>
+			</div>
 		`);
-		dialog.show();
 	}
 }
 
