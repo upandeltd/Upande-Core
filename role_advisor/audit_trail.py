@@ -14,7 +14,25 @@ the thing that is wrong.
 import collections
 import json
 
+import frappe
+from frappe.utils import add_days, cint, getdate, nowdate
+
+from role_advisor import dashboard
+
 ACCESS_DOCTYPES = ("User", "Role", "Role Profile", "Module Profile", "Property Setter")
+
+MAX_PAGE_SIZE = 500
+DEFAULT_DAYS = 30
+MAX_UNTARGETED_DAYS = 90
+ATTRIBUTION_WINDOW_SECONDS = 2
+HISTORY_FLOOR = "2025-10-08"
+
+# Stated with every response. A trail that looks complete while being silently
+# partial is worse than none.
+UNCOVERED = (
+	"Custom DocPerm changes are not versioned and cannot appear here.",
+	f"No history exists before {HISTORY_FLOOR}.",
+)
 
 # Scalar fields on the parent doc that mean something for access. Everything
 # else on User - birth_date, gender, user_image, last_active - is churn, and
@@ -136,4 +154,140 @@ def _delta(data: str, ref_doctype: str) -> dict | None:
 		"profile_after": profile_after,
 		"fields": fields,
 		"updater_reference": blob.get("updater_reference"),
+	}
+
+
+def _is_parseable(data: str) -> bool:
+	try:
+		json.loads(data)
+	except (ValueError, TypeError):
+		return False
+	return True
+
+
+def _window(start: str | None, end: str | None, target: str | None) -> tuple[str, str]:
+	"""The date range to scan, refusing one too wide to answer cheaply."""
+	end = str(getdate(end) if end else getdate(nowdate()))
+	start = str(getdate(start) if start else getdate(add_days(end, -DEFAULT_DAYS)))
+
+	if getdate(start) > getdate(end):
+		frappe.throw(f"Start date {start} is after end date {end}.")
+
+	if not target:
+		span = (getdate(end) - getdate(start)).days
+		if span > MAX_UNTARGETED_DAYS:
+			frappe.throw(
+				f"A range of {span} days needs a target user. "
+				f"Without one the range must be {MAX_UNTARGETED_DAYS} days or fewer."
+			)
+
+	return start, end
+
+
+def _fetch(start, end, target, actor, doctype, limit, offset) -> tuple[list[dict], bool]:
+	"""A page of version rows, newest first. One extra row answers has_more."""
+	doctypes = (doctype,) if doctype in ACCESS_DOCTYPES else ACCESS_DOCTYPES
+
+	conditions = ["v.ref_doctype in %(doctypes)s", "v.creation between %(start)s and %(end)s"]
+	params = {
+		"doctypes": doctypes,
+		"start": f"{start} 00:00:00",
+		"end": f"{end} 23:59:59",
+		"limit": limit + 1,
+		"offset": offset,
+	}
+	if target:
+		conditions.append("v.docname = %(target)s")
+		params["target"] = target
+	if actor:
+		conditions.append("v.owner = %(actor)s")
+		params["actor"] = actor
+
+	rows = frappe.db.sql(
+		f"""
+		select v.name, v.owner, v.ref_doctype, v.docname, v.data, v.creation,
+		       u.full_name as actor_name
+		from `tabVersion` v
+		left join `tabUser` u on u.name = v.owner
+		where {" and ".join(conditions)}
+		order by v.creation desc
+		limit %(limit)s offset %(offset)s
+		""",
+		params,
+		as_dict=True,
+	)
+
+	return rows[:limit], len(rows) > limit
+
+
+def _attribute(rows: list[dict]) -> list[dict]:
+	for row in rows:
+		row["source"] = "external"
+	return rows
+
+
+@frappe.whitelist()
+def trail(
+	target: str | None = None,
+	actor: str | None = None,
+	doctype: str | None = None,
+	start: str | None = None,
+	end: str | None = None,
+	page: int = 1,
+	page_size: int = 50,
+) -> dict:
+	"""Every real access change in the window, newest first.
+
+	`scanned` and `surfaced` are both reported because most version rows carry
+	no net change: a page of three rows out of four hundred scanned is the
+	correct answer, and without both numbers it reads as a bug.
+	"""
+	admin = dashboard._guard()
+	scoped = dashboard._scoped_users(admin)
+
+	page = max(cint(page) or 1, 1)
+	page_size = min(max(cint(page_size) or 50, 1), MAX_PAGE_SIZE)
+	start, end = _window(start, end, target)
+
+	if scoped is not None:
+		if target and target not in scoped:
+			frappe.throw(f"{target} is not in your scope.")
+		if not scoped:
+			scoped = ["\0"]
+
+	versions, has_more = _fetch(
+		start, end, target, actor, doctype, page_size, (page - 1) * page_size
+	)
+
+	rows = []
+	unparsed = 0
+	for version in versions:
+		if scoped is not None and version.ref_doctype == "User" and version.docname not in scoped:
+			continue
+		delta = _delta(version.data, version.ref_doctype)
+		if delta is None:
+			if version.data and not _is_parseable(version.data):
+				unparsed += 1
+			continue
+		rows.append(
+			{
+				**delta,
+				"version": version.name,
+				"when": version.creation,
+				"actor": version.owner,
+				"actor_name": version.actor_name,
+				"document": version.docname,
+			}
+		)
+
+	return {
+		"rows": _attribute(rows),
+		"page": page,
+		"page_size": page_size,
+		"has_more": has_more,
+		"scanned": len(versions),
+		"surfaced": len(rows),
+		"unparsed": unparsed,
+		"attribution": "heuristic",
+		"limits": {"history_floor": HISTORY_FLOOR, "uncovered": list(UNCOVERED)},
 	}
