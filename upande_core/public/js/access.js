@@ -198,6 +198,7 @@ const GROUPS = [
 		views: [
 			{ id: "reports", label: "Reports", icon: "file" },
 			{ id: "audit", label: "Assignment Log", icon: "clock", count: "assignments" },
+			{ id: "trail", label: "Audit Trail", icon: "clock" },
 			{ id: "admin", label: "Delegates & Policy", icon: "shield", count: "delegates" },
 		],
 	},
@@ -3508,8 +3509,8 @@ class App {
 	async view_audit() {
 		this.$main.html(`
 			${this.head(
-				__("Audit Trail"),
-				__("Every assignment ever made, including the ones that changed nothing")
+				__("Assignment Log"),
+				__("Every assignment this app made, including the ones that changed nothing")
 			)}
 			<div class="ra-card">
 				<div class="ra-card__head"><h3>${__("Assignments")}</h3><div class="ra-meta">${__("newest first · rows cannot be edited or deleted")}</div></div>
@@ -3548,6 +3549,190 @@ class App {
 		this.$main.find(".ra-auditrows .ra-lrow").on("click", (event) => {
 			this.open_log($(event.currentTarget).data("log"));
 		});
+	}
+
+	// ----------------------------------------------------------- audit trail
+
+	/* The Assignment Log above shows what this app did - 13 rows. This shows
+	   what actually happened to access on the site, from any source, netted out
+	   of tabVersion. The two are deliberately separate: one is a decision
+	   record, the other is the history. */
+	async view_trail() {
+		this.$main.html(`
+			${this.head(
+				__("Audit Trail"),
+				__("Every real access change, whoever made it - including changes that bypassed this app")
+			)}
+			<div class="ra-card">
+				<div class="ra-card__head">
+					<h3>${__("Filter")}</h3>
+					<div class="ra-meta ra-trrange">
+						<button data-days="7">${__("7 days")}</button>
+						<button data-days="30" class="on">${__("30 days")}</button>
+						<button data-days="90">${__("90 days")}</button>
+					</div>
+				</div>
+				<div class="ra-trwho"></div>
+			</div>
+			<div class="ra-card">
+				<div class="ra-card__head">
+					<h3>${__("Changes")}</h3>
+					<div class="ra-meta ra-trcount"></div>
+				</div>
+				<div class="ra-list ra-trrows"><div class="ra-empty"><span class="ra-spinner"></span></div></div>
+			</div>
+			<div class="ra-card">
+				<div class="ra-card__head"><h3>${__("What this cannot show")}</h3></div>
+				<div class="ra-trlimits ra-lmeta"></div>
+			</div>
+		`);
+
+		this.tr = this.tr || { user: "", days: 30 };
+
+		const run = async () => {
+			const $rows = this.$main.find(".ra-trrows");
+			$rows.html(`<div class="ra-empty"><span class="ra-spinner"></span></div>`);
+
+			const end = frappe.datetime.get_today();
+			const start = frappe.datetime.add_days(end, -this.tr.days);
+
+			let out;
+			try {
+				out = await frappe.xcall("role_advisor.audit_trail.trail", {
+					target: this.tr.user || null,
+					start: start,
+					end: end,
+					page_size: 50,
+				});
+			} catch (error) {
+				$rows.html(`<div class="ra-empty">${esc(error.message || __("Could not read the trail."))}</div>`);
+				return;
+			}
+
+			// Most version rows carry no net change, so a short list from a long
+			// scan is the correct answer. Saying both numbers stops it reading
+			// as a bug.
+			this.$main.find(".ra-trcount").text(
+				__("{0} shown from {1} scanned{2}", [
+					num(out.surfaced),
+					num(out.scanned),
+					out.unparsed ? __(" · {0} unreadable", [num(out.unparsed)]) : "",
+				])
+			);
+
+			this.$main.find(".ra-trlimits").html(
+				(out.limits && out.limits.uncovered ? out.limits.uncovered : [])
+					.map((line) => `<div>${esc(line)}</div>`)
+					.join("") +
+					`<div>${__("Attribution is inferred from timing, not stamped on the write.")}</div>`
+			);
+
+			$rows.html(
+				out.rows.length
+					? out.rows.map((row) => this.trail_row(row)).join("")
+					: `<div class="ra-empty">${__("No access changed in this window.")}</div>`
+			);
+
+			$rows.find(".ra-lrow").on("click", (event) => {
+				this.open_trail_event($(event.currentTarget).data("version"));
+			});
+		};
+
+		/* Any user, not only the ones the caller administers: reading history is
+		   not granting anything, and the endpoint applies its own scoping. */
+		this.tr_picker = picker(this.$main.find(".ra-trwho"), {
+			label: __("Whose access"),
+			placeholder: __("Leave blank for everyone"),
+			onPick: (value) => {
+				this.tr.user = value || "";
+				run();
+			},
+		});
+
+		this.$main.find(".ra-trrange button").on("click", (event) => {
+			const $b = $(event.currentTarget);
+			this.$main.find(".ra-trrange button").removeClass("on");
+			$b.addClass("on");
+			this.tr.days = cint($b.data("days"));
+			run();
+		});
+
+		run();
+	}
+
+	trail_row(row) {
+		const SOURCE = {
+			role_advisor: { cls: "", label: __("via Role Advisor") },
+			system: { cls: "mute", label: __("automated") },
+			external: { cls: "bad", label: __("outside Role Advisor") },
+		};
+		const source = SOURCE[row.source] || SOURCE.external;
+
+		const change = [];
+		if (row.profile_before || row.profile_after) {
+			change.push(
+				`${esc(row.profile_before || __("no profile"))} → ${esc(row.profile_after || __("no profile"))}`
+			);
+		}
+		(row.roles_gained || []).forEach((r) => change.push(`<span class="ra-chip">+${esc(r)}</span>`));
+		(row.roles_lost || []).forEach((r) => change.push(`<span class="ra-chip bad">−${esc(r)}</span>`));
+		(row.modules_blocked || []).forEach((m) =>
+			change.push(`<span class="ra-chip mute">${__("blocked")} ${esc(m)}</span>`)
+		);
+		(row.modules_unblocked || []).forEach((m) =>
+			change.push(`<span class="ra-chip mute">${__("unblocked")} ${esc(m)}</span>`)
+		);
+		(row.fields || []).forEach((field) =>
+			change.push(`${esc(field[0])}: ${esc(field[1])} → ${esc(field[2])}`)
+		);
+
+		return `
+			<div class="ra-lrow clickable" data-version="${esc(row.version)}">
+				<div class="ra-rank">${esc((row.actor || "?").slice(0, 2).toUpperCase())}</div>
+				<div>
+					<div class="ra-name">${esc(row.document)} <span class="ra-chip ${source.cls}">${source.label}</span></div>
+					<div class="ra-lmeta">${change.join(" · ") || __("no net change")}</div>
+					<div class="ra-lmeta">${row.doctype !== "User" ? esc(row.doctype) + " · " : ""}${__(
+						"by"
+					)} ${esc(row.actor_name || row.actor)} · ${frappe.datetime.comment_when(row.when)}</div>
+				</div>
+			</div>`;
+	}
+
+	/* The netted row is what makes the trail readable; the raw blob is what
+	   makes it provable, cancelled events and all. */
+	async open_trail_event(version) {
+		const d = await frappe.xcall("role_advisor.audit_trail.event", { version: version });
+
+		const dialog = new frappe.ui.Dialog({
+			title: __("Change on {0}", [d.document]),
+			size: "large",
+			fields: [{ fieldtype: "HTML", fieldname: "body" }],
+		});
+
+		dialog.fields_dict.body.$wrapper.html(`
+			<div class="ra-lmeta">${__("by")} ${esc(d.actor)} · ${frappe.datetime.str_to_user(d.when)} · ${esc(
+				d.doctype
+			)}</div>
+			${
+				d.logins && d.logins.length
+					? `<h5 style="margin-top:12px">${__("Sign-ins either side of this change")}</h5>
+						<div class="ra-lmeta">${d.logins
+							.map(
+								(l) =>
+									`${esc(l.operation)} ${esc(l.status)} · ${esc(l.ip_address || "—")} · ${frappe.datetime.str_to_user(
+										l.creation
+									)}`
+							)
+							.join("<br>")}</div>`
+					: ""
+			}
+			<h5 style="margin-top:12px">${__("What the database recorded")}</h5>
+			<pre style="max-height:340px;overflow:auto;font-size:11px">${esc(
+				JSON.stringify(d.raw, null, 1)
+			)}</pre>
+		`);
+		dialog.show();
 	}
 }
 
