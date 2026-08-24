@@ -1,0 +1,9 @@
+{
+ "actions": [], "creation": "2026-08-20 00:00:00.000000", "doctype": "DocType",
+ "engine": "InnoDB", "field_order": ["module_profile"],
+ "fields": [{"fieldname": "module_profile", "fieldtype": "Link", "label": "Delegated Module Profile",
+   "options": "Module Profile", "in_list_view": 1, "reqd": 1}],
+ "istable": 1, "links": [], "modified": "2026-08-20 00:00:00.000000",
+ "module": "Upande Core", "name": "Delegated Module Profile", "owner": "Administrator", "permissions": [],
+ "sort_field": "modified", "sort_order": "DESC"
+}

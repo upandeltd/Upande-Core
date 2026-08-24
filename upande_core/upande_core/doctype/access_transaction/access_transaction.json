@@ -1,0 +1,94 @@
+{
+ "actions": [],
+ "autoname": "field:transaction_name",
+ "creation": "2026-08-21 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "transaction_name",
+  "is_active",
+  "col",
+  "owned_by",
+  "description",
+  "sec",
+  "requirements"
+ ],
+ "fields": [
+  {
+   "fieldname": "transaction_name",
+   "fieldtype": "Data",
+   "label": "Bundle Name",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Only worth creating when one ask spans several documents \u2014 'Run payroll' needs Salary Slip, Payroll Entry and Journal Entry. For a single document, search the document itself instead."
+  },
+  {
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Is Active",
+   "default": "1",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "col",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "owned_by",
+   "fieldtype": "Link",
+   "label": "Owned By",
+   "options": "User",
+   "description": "The module owner accountable for the wording."
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "sec",
+   "fieldtype": "Section Break",
+   "label": "What it requires"
+  },
+  {
+   "fieldname": "requirements",
+   "fieldtype": "Table",
+   "label": "Requirements",
+   "options": "Access Transaction Requirement",
+   "reqd": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-08-21 00:00:00.000000",
+ "module": "Upande Core",
+ "name": "Access Transaction",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "User Manager",
+   "read": 1,
+   "report": 1
+  },
+  {
+   "role": "All",
+   "read": 1
+  }
+ ],
+ "sort_field": "transaction_name",
+ "sort_order": "ASC",
+ "track_changes": 1
+}

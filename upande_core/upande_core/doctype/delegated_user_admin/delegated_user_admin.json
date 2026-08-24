@@ -1,0 +1,47 @@
+{
+ "actions": [],
+ "autoname": "field:user",
+ "creation": "2026-08-20 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user", "enabled", "can_create_users", "can_disable_users",
+  "scope_section", "companies", "branches",
+  "grant_section", "allowed_role_profiles", "allowed_module_profiles"
+ ],
+ "fields": [
+  {"fieldname": "user", "fieldtype": "Link", "label": "User", "options": "User",
+   "reqd": 1, "unique": 1, "in_list_view": 1},
+  {"fieldname": "enabled", "fieldtype": "Check", "label": "Enabled", "default": "1",
+   "in_list_view": 1,
+   "description": "Restrictions apply only while this record is enabled. Disabling it restores stock behaviour."},
+  {"fieldname": "can_create_users", "fieldtype": "Check", "label": "Can Create Users", "default": "0"},
+  {"fieldname": "can_disable_users", "fieldtype": "Check", "label": "Can Disable Users", "default": "0"},
+  {"fieldname": "scope_section", "fieldtype": "Section Break", "label": "Scope"},
+  {"fieldname": "companies", "fieldtype": "Table MultiSelect", "label": "Companies",
+   "options": "Delegated Company",
+   "description": "Defaults from this user's existing Company User Permissions, then stored explicitly so a later change to those permissions cannot silently widen what they administer."},
+  {"fieldname": "branches", "fieldtype": "Table MultiSelect", "label": "Branches",
+   "options": "Delegated Branch",
+   "description": "Optional. Empty means every branch within the companies above."},
+  {"fieldname": "grant_section", "fieldtype": "Section Break", "label": "Grantable"},
+  {"fieldname": "allowed_role_profiles", "fieldtype": "Table MultiSelect",
+   "label": "Allowed Role Profiles", "options": "Delegated Role Profile",
+   "description": "What this admin may hand out - not what they hold themselves."},
+  {"fieldname": "allowed_module_profiles", "fieldtype": "Table MultiSelect",
+   "label": "Allowed Module Profiles", "options": "Delegated Module Profile"}
+ ],
+ "links": [],
+ "modified": "2026-08-20 00:00:00.000000",
+ "module": "Upande Core",
+ "name": "Delegated User Admin",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1,
+   "report": 1, "export": 1, "print": 1, "email": 1, "share": 1},
+  {"role": "User Manager", "read": 1}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

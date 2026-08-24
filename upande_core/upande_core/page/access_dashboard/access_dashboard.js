@@ -1,216 +1,70 @@
-/* Copyright (c) 2026, Upande and contributors
- * For license information, please see license.txt
+// Copyright (c) 2026, ghost-mann and contributors
+// For license information, please see license.txt
+
+/* Access Dashboard.
  *
- * IT Operations - the access half.
+ * Six views over one question: who can do what, and should they. Every number
+ * is counted server-side by upande_core.dashboard - nothing is estimated here,
+ * and no trend is drawn that the stored data cannot support.
  *
- * This is Role Advisor's dashboard, moved from a desk page onto the portal. The
- * views are unchanged; what changed is the four things a desk page gave it for
- * free:
- *
- *   the page shell   frappe.ui.make_app_page is desk-only, so App() builds its
- *                    own root, topbar and sidebar into the element it is given.
- *   the user picker  frappe.ui.form.make_control is desk-only. Awesomplete is
- *                    not, and it is what that control uses underneath, so
- *                    picker() rebuilds the one control the views needed. The
- *                    server query is still the boundary: it only returns users
- *                    the caller may administer.
- *   routing          frappe.router is desk-only; the view lives in the hash.
- *   translation      __() and frappe.xcall are both on a website page already.
- *
- * The IT sections - helpdesk, workforce, assets, devices, biometric, system
- * health, activity, audit, errors, shifts, monitor config - are in itops.js,
- * which extends this class. Both are needed; neither works alone.
+ * Writes go through upande_core.api only, which gates on the caller's
+ * Delegated User Admin record. This page has no privileged path of its own.
  */
 
-(function () {
-"use strict";
+frappe.pages["access-dashboard"].on_page_load = function (wrapper) {
+	const page = frappe.ui.make_app_page({
+		parent: wrapper,
+		title: __("Role Advisor"),
+		single_column: true,
+	});
+	page.main.addClass("ra-dash");
+	frappe.pages["access-dashboard"].instance = new AccessDashboard(page);
+};
 
+frappe.pages["access-dashboard"].on_page_show = function () {
+	standalone(true);
+};
 
-/* ------------------------------------------------------------------------- *
- * Scoped user picker
+/* Role Advisor is an app, not a desk page dressed up as one. The route is a
+ * desk route because the page needs frappe.ui.form.make_control for its scoped
+ * Link pickers and frappe.confirm for its writes - neither exists on a website
+ * page - but nothing about the desk should be visible once it loads. The desk
+ * navbar, breadcrumb and sidebar come off, and this page's own topbar and
+ * sidebar are the only navigation.
  *
- * Rebuilt on Awesomplete because the website bundle carries no form controls.
- * The security property is unchanged and lives on the server: `query` only
- * ever returns users the caller may administer, so the picker cannot offer
- * somebody the write would then refuse.
- * ------------------------------------------------------------------------- */
-function picker(mount, { label, placeholder, query, onPick }) {
-	const $wrap = $(`
-		<div class="ra-pick">
-			${label ? `<label>${esc(label)}</label>` : ""}
-			<input type="search" class="ra-input" autocomplete="off" spellcheck="false"
-				role="combobox" aria-expanded="false" aria-autocomplete="list"
-				placeholder="${esc(placeholder || __("Search"))}">
-			<ul class="ra-pick__list" role="listbox" hidden></ul>
-		</div>`).appendTo(mount);
+ * The class has to come off again on the way out: leaving it on would serve
+ * every other desk page with no sidebar, which looks exactly like a broken
+ * desk.
+ */
+const RA_ROUTES = ["access-dashboard", "my-access"];
+let watching_route = false;
 
-	const input = $wrap.find("input")[0];
-	const $list = $wrap.find(".ra-pick__list");
-	let chosen = null;
-	let rows = [];
-	let active = -1;
-	let timer;
+function standalone(on) {
+	$("body").toggleClass("ra-standalone", !!on);
 
-	const close = () => {
-		$list.attr("hidden", true).empty();
-		input.setAttribute("aria-expanded", "false");
-		active = -1;
-	};
-
-	const announce = (value) => {
-		if (value === chosen) return;
-		chosen = value;
-		onPick(value);
-	};
-
-	const choose = (index) => {
-		const row = rows[index];
-		if (!row) return;
-		input.value = row.value;
-		close();
-		announce(row.value);
-	};
-
-	const draw = () => {
-		if (!rows.length) return close();
-		$list
-			.html(
-				rows
-					.map(
-						(row, index) => `
-				<li role="option" data-i="${index}" class="${index === active ? "on" : ""}"
-					aria-selected="${index === active}">
-					<b>${esc(row.label)}</b><small>${esc(row.value)}</small>
-				</li>`
-					)
-					.join("")
-			)
-			.removeAttr("hidden");
-		input.setAttribute("aria-expanded", "true");
-	};
-
-	input.addEventListener("input", () => {
-		clearTimeout(timer);
-		const txt = input.value.trim();
-		if (!txt) {
-			rows = [];
-			return close();
-		}
-		timer = setTimeout(async () => {
-			try {
-				const found = await frappe.xcall("frappe.desk.search.search_link", {
-					doctype: "User",
-					txt,
-					// An empty query means the plain User search; the scoped views
-					// pass `upande_core.api.manageable_user_query` instead.
-					...(query ? { query } : {}),
-				});
-				// The description carries the full name, so show that and submit
-				// the login.
-				rows = (found || []).map((row) => ({
-					label: row.description || row.value,
-					value: row.value,
-				}));
-			} catch (error) {
-				// A refused search does not deserve a dialog; the empty list says it.
-				rows = [];
-			}
-			active = -1;
-			draw();
-		}, 220);
+	if (!on || watching_route) return;
+	watching_route = true;
+	frappe.router.on("change", () => {
+		const route = frappe.get_route() || [];
+		$("body").toggleClass("ra-standalone", RA_ROUTES.includes(route[0]));
 	});
-
-	input.addEventListener("keydown", (event) => {
-		if ($list.attr("hidden")) return;
-		if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-			event.preventDefault();
-			active = Math.max(
-				0,
-				Math.min(rows.length - 1, active + (event.key === "ArrowDown" ? 1 : -1))
-			);
-			draw();
-		} else if (event.key === "Enter") {
-			event.preventDefault();
-			choose(active >= 0 ? active : 0);
-		} else if (event.key === "Escape") {
-			close();
-		}
-	});
-
-	$list.on("mousedown", "li", (event) => choose(cint($(event.currentTarget).data("i"))));
-	// Typing a full login and leaving the field counts as choosing it.
-	input.addEventListener("change", () => input.value && announce(input.value));
-	$(document).on("click", (event) => {
-		if (!$wrap[0].contains(event.target)) close();
-	});
-
-	return {
-		get value() {
-			return chosen || input.value || null;
-		},
-		set(value) {
-			input.value = value || "";
-			announce(value || null);
-		},
-	};
 }
 
-/* Two of the IT endpoints read `frappe.request.args` and refuse anything but
- * GET - shiftOverview answers a POST with "Method not allowed. Use GET." -
- * so they cannot go through frappe.xcall, which posts. */
-async function getJSON(method, params) {
-	const query = new URLSearchParams(params || {}).toString();
-	const response = await fetch(
-		`/api/method/${method}${query ? "?" + query : ""}`,
-		{ headers: { Accept: "application/json" }, credentials: "same-origin" }
-	);
-	const body = await response.json();
-	if (body.exc || body.exception) throw new Error(body.exception || __("Request failed"));
-	return body.message;
-}
-
-
-/* Sidebar groups. itops.js pushes its own onto this, so the order here is the
-   order on screen: the estate first, then access, then the IT sections. */
-const GROUPS = [
-	{
-		label: "Overview",
-		views: [
-			{ id: "overview", label: "Overview", icon: "grid" },
-			{ id: "anomalies", label: "Anomalies", icon: "alert" },
-		],
-	},
-	{
-		label: "Access",
-		views: [
-			{ id: "users", label: "Users", icon: "users", count: "enabled" },
-			{ id: "profiles", label: "Role Profiles", icon: "layers", count: "profiles" },
-			{ id: "modules", label: "Modules", icon: "box", count: "modules" },
-			{ id: "request", label: "Request Access", icon: "search" },
-			{ id: "queue", label: "Incoming Requests", icon: "inbox", count: "open_requests" },
-			{ id: "assign", label: "Grant Access", icon: "check" },
-			{ id: "map", label: "Designation Map", icon: "map", count: "map_rows" },
-			{ id: "sweep", label: "Bulk Sweep", icon: "zap" },
-		],
-	},
-	{
-		label: "Governance",
-		views: [
-			{ id: "reports", label: "Reports", icon: "file" },
-			{ id: "audit", label: "Assignment Log", icon: "clock", count: "assignments" },
-			{ id: "trail", label: "Audit Trail", icon: "clock" },
-			{ id: "admin", label: "Delegates & Policy", icon: "shield", count: "delegates" },
-		],
-	},
+const VIEWS = [
+	{ id: "overview", label: "Overview", icon: "grid" },
+	{ id: "anomalies", label: "Anomalies", icon: "alert" },
+	{ id: "users", label: "Users", icon: "users", count: "enabled" },
+	{ id: "profiles", label: "Role Profiles", icon: "layers", count: "profiles" },
+	{ id: "modules", label: "Modules", icon: "box", count: "modules" },
+	{ id: "request", label: "Request Access", icon: "search" },
+	{ id: "queue", label: "Incoming Requests", icon: "inbox", count: "open_requests" },
+	{ id: "assign", label: "Assign Access", icon: "check" },
+	{ id: "map", label: "Designation Map", icon: "map", count: "map_rows" },
+	{ id: "sweep", label: "Bulk Sweep", icon: "zap" },
+	{ id: "reports", label: "Reports", icon: "file" },
+	{ id: "audit", label: "Audit Trail", icon: "clock", count: "assignments" },
+	{ id: "admin", label: "Delegates & Policy", icon: "shield", count: "delegates" },
 ];
-
-/* Flat view list, derived. Nothing should maintain this by hand. */
-const VIEWS = [];
-function indexViews() {
-	VIEWS.length = 0;
-	GROUPS.forEach((group) => group.views.forEach((view) => VIEWS.push(view)));
-	return VIEWS;
-}
 
 const ICONS = {
 	grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
@@ -248,25 +102,15 @@ const cint = (value) => parseInt(value, 10) || 0;
 const plural = (n, one, many) => (Number(n) === 1 ? __(one) : __(many, [num(n)]));
 const actions = (n) => plural(n, "1 action", "{0} actions");
 
-class App {
-	constructor(root) {
-		indexViews();
-		// The desk gave this a page object with a `main` jQuery handle; the
-		// portal gives an element, so `main` is synthesised to keep every
-		// `this.page.main.find(...)` in the views below working unchanged.
-		this.root = root;
-		this.page = { main: $(root) };
-		this.view = (location.hash || "").replace(/^#\/?/, "") || "overview";
+class AccessDashboard {
+	constructor(page) {
+		this.page = page;
+		this.view = (frappe.get_route() || [])[1] || "overview";
 		this.cache = {};
 		// Grant state survives a view switch so a half-built selection is not
 		// lost by glancing at the anomalies list.
 		this.grant = { user: null, needs: [], module: null, mode: "needs" };
-		// The website template keeps a navbar, a footer and a 1290px cap. This
-		// page is an application, so it takes the viewport - see the rules
-		// scoped to body.ra-portal in access.css.
-		document.body.classList.add("ra-portal");
 		this.render_shell();
-		this.watch_hash();
 		this.load();
 	}
 
@@ -279,7 +123,7 @@ class App {
 					<img src="/assets/upande_core/images/role-advisor-logo.svg" alt="" width="34" height="34">
 					<span>
 						<b>${__("Role Advisor")}</b>
-						<small>${__("IT Operations")}</small>
+						<small>${esc(frappe.boot.sysdefaults?.company || frappe.boot.sitename || "")}</small>
 					</span>
 				</a>
 				<div class="ra-top__right">
@@ -298,22 +142,17 @@ class App {
 			<div class="ra-page">
 				<aside class="ra-side">
 					<div>
-						${GROUPS.map(
-							(group) => `
-							<div class="ra-side__label">${__(group.label)}</div>
-							<nav class="ra-nav">
-								${group.views
-									.map(
-										(view) => `
-									<a data-view="${view.id}" class="${view.id === this.view ? "on" : ""}">
-										<svg viewBox="0 0 24 24">${ICONS[view.icon] || ICONS.grid}</svg>
-										${__(view.label)}
-										${view.count ? `<span class="n" data-count="${view.count}">–</span>` : ""}
-									</a>`
-									)
-									.join("")}
-							</nav>`
-						).join("")}
+						<div class="ra-side__label">${__("Views")}</div>
+						<nav class="ra-nav">
+							${VIEWS.map(
+								(view) => `
+								<a data-view="${view.id}" class="${view.id === this.view ? "on" : ""}">
+									<svg viewBox="0 0 24 24">${ICONS[view.icon]}</svg>
+									${__(view.label)}
+									${view.count ? `<span class="n" data-count="${view.count}">–</span>` : ""}
+								</a>`
+							).join("")}
+						</nav>
 					</div>
 					<div>
 						<div class="ra-side__label">${__("At a glance")}</div>
@@ -368,11 +207,14 @@ class App {
 
 		// Administrators are users too: the self-service page is where they see
 		// their own access rather than the estate's.
-		this.page.main.find(".ra-tomine").on("click", () => (window.location = "/my-access"));
+		this.page.main.find(".ra-tomine").on("click", () => frappe.set_route("my-access"));
 
 		// Hiding the desk chrome removes the only way out, so the way out is
 		// put back explicitly - in the sidebar and in the topbar.
-		this.page.main.find(".ra-todesk").on("click", () => (window.location = "/app"));
+		this.page.main.find(".ra-todesk").on("click", () => {
+			standalone(false);
+			frappe.set_route("workspace", "Home");
+		});
 
 		this.page.main.find(".ra-rescan").on("click", () => {
 			this.cache = {};
@@ -383,19 +225,12 @@ class App {
 		});
 	}
 
-	watch_hash() {
-		window.addEventListener("hashchange", () => {
-			const view = (location.hash || "").replace(/^#\/?/, "") || "overview";
-			if (view !== this.view) this.go(view);
-		});
-	}
-
 	go(view) {
 		this.view = view;
 		this.page.main.find(".ra-nav a").removeClass("on");
 		this.page.main.find(`.ra-nav a[data-view="${view}"]`).addClass("on");
-		// The hash is the route, so the back button and a shared link both work.
-		if (location.hash.replace(/^#\/?/, "") !== view) location.hash = view;
+		// Route so the browser back button and a shared link both work.
+		frappe.set_route("access-dashboard", view);
 		this.render();
 		window.scrollTo({ top: 0 });
 	}
@@ -404,8 +239,6 @@ class App {
 		this.$main.html(`<div class="ra-empty"><span class="ra-spinner"></span> ${__("Counting…")}</div>`);
 		try {
 			this.summary = await frappe.xcall("upande_core.dashboard.summary");
-			// Presentation only; every write is re-checked on the server.
-			this.is_sysmgr = !!this.summary.is_system_manager;
 		} catch (error) {
 			this.$main.html(
 				`<div class="ra-card"><div class="ra-empty">${esc(
@@ -440,18 +273,6 @@ class App {
 		);
 
 		this.render();
-	}
-
-	/* One KPI tile. Same markup the overview emits inline, factored out so the
-	   IT views in itops.js render identically rather than approximately. */
-	kpi(label, value, unit, tone, note) {
-		return `
-			<div class="ra-kpi">
-				<div class="ra-kpi__label">${label}</div>
-				<div class="ra-kpi__value">${value}</div>
-				<div class="ra-kpi__unit">${unit || ""}</div>
-				${note ? `<div class="ra-tag ${tone || "flat"}">${note}</div>` : ""}
-			</div>`;
 	}
 
 	head(title, sub, tools = "") {
@@ -1523,20 +1344,27 @@ class App {
 					: __("every user on the site")
 			);
 
-		// Scoped server query, so the picker cannot suggest someone the caller
-		// would then be refused for.
-		this.user_field = picker(this.$main.find(".ra-userpick"), {
-			label: __("User"),
-			placeholder: __("Search by name or login"),
-			query: "upande_core.api.manageable_user_query",
-			onPick: () => this.on_pick_user(),
+		this.user_field = frappe.ui.form.make_control({
+			parent: this.$main.find(".ra-userpick"),
+			df: {
+				fieldtype: "Link",
+				options: "User",
+				label: __("User"),
+				fieldname: "ra_user",
+				placeholder: __("Search by name or login"),
+				// Scoped server query, so the picker cannot suggest someone the
+				// caller would then be refused for.
+				get_query: "upande_core.api.manageable_user_query",
+				change: () => this.on_pick_user(),
+			},
+			render_input: true,
 		});
 
 		this.render_grant_body();
 
 		// Arrived here from a user drawer or an anomaly row: pre-select them.
 		if (this.pending_user) {
-			this.user_field.set(this.pending_user);
+			this.user_field.set_value(this.pending_user);
 			this.pending_user = null;
 		}
 	}
@@ -1750,7 +1578,7 @@ class App {
 	}
 
 	async resolve_grant() {
-		const user = this.user_field && this.user_field.value;
+		const user = this.user_field && this.user_field.get_value();
 		const $verdict = this.$main.find(".ra-verdict");
 
 		if (!user || !this.grant.needs.length) {
@@ -1914,7 +1742,7 @@ class App {
 	}
 
 	async do_grant(profile) {
-		const user = this.user_field.value;
+		const user = this.user_field.get_value();
 		if (!user || !profile) return;
 
 		const asked = this.grant.needs
@@ -1983,7 +1811,7 @@ class App {
 	// job changed and wrong when the job merely grew, so the additive path keeps
 	// their roles and adds the smallest set that covers the new ask.
 	async do_add() {
-		const user = this.user_field && this.user_field.value;
+		const user = this.user_field && this.user_field.get_value();
 		if (!user || !this.grant.needs.length) return;
 
 		const { $drawer } = this.loading_drawer(__("Add to their access"));
@@ -2226,7 +2054,7 @@ class App {
 	}
 
 	async on_pick_user() {
-		const user = this.user_field.value;
+		const user = this.user_field.get_value();
 		if (!user) return;
 		this.grant.user = user;
 		this.$main.find(".ra-previewcard").attr("hidden", true);
@@ -2281,7 +2109,7 @@ class App {
 	}
 
 	async preview(profile) {
-		const user = this.user_field && this.user_field.value;
+		const user = this.user_field && this.user_field.get_value();
 		if (!user) {
 			frappe.show_alert({ message: __("Choose a user first."), indicator: "orange" });
 			return;
@@ -2349,12 +2177,12 @@ class App {
 
 		try {
 			const result = await frappe.xcall("upande_core.api.assign_access", {
-				user: this.user_field.value,
+				user: this.user_field.get_value(),
 				role_profile: this.grant.profile,
 			});
 			frappe.show_alert({
 				message: __("{0} now holds {1}", [
-					this.user_field.value,
+					this.user_field.get_value(),
 					result.profiles.join(", "),
 				]),
 				indicator: result.outcome === "Applied" ? "green" : "blue",
@@ -2619,15 +2447,21 @@ class App {
 			.find(".ra-whonote")
 			.text(delegate ? __("yourself, or anyone you administer") : __("yourself"));
 
-		// The scoped query when the caller is a delegate; otherwise they can
-		// still type their own login, which the server allows.
-		this.req_user = picker(this.$main.find(".ra-reqwho"), {
-			label: __("User"),
-			placeholder: __("Search by name or login"),
-			query: "upande_core.api.manageable_user_query",
-			onPick: () => this.resolve_request(),
+		this.req_user = frappe.ui.form.make_control({
+			parent: this.$main.find(".ra-reqwho"),
+			df: {
+				fieldtype: "Link",
+				options: "User",
+				label: __("User"),
+				fieldname: "ra_req_user",
+				// The scoped query when the caller is a delegate; otherwise they
+				// can still type their own login, which the server allows.
+				get_query: "upande_core.api.manageable_user_query",
+				change: () => this.resolve_request(),
+			},
+			render_input: true,
 		});
-		this.req_user.set(frappe.session.user);
+		this.req_user.set_value(frappe.session.user);
 
 		let timer;
 		this.$main.find(".ra-docsearch").on("input", (event) => {
@@ -2793,7 +2627,7 @@ class App {
 	}
 
 	async resolve_request() {
-		const user = this.req_user && this.req_user.value;
+		const user = this.req_user && this.req_user.get_value();
 		const requirements = this.requirements();
 		const $body = this.$main.find(".ra-verdictbody");
 
@@ -2906,7 +2740,7 @@ class App {
 	}
 
 	async record_request(and_assign) {
-		const user = this.req_user.value;
+		const user = this.req_user.get_value();
 		const reason = this.$main.find(".ra-reason").val() || "";
 		const $buttons = this.$main.find(".ra-logreq, .ra-assignreq").prop("disabled", true);
 
@@ -2976,7 +2810,7 @@ class App {
 			this.fetch("map", "map_list"),
 			this.fetch("profileopts", "profile_options"),
 		]);
-		const editable = this.is_sysmgr;
+		const editable = frappe.user.has_role("System Manager");
 
 		const draw = () => {
 			const term = (this.$main.find(".ra-msearch").val() || "").toLowerCase();
@@ -3083,7 +2917,7 @@ class App {
 	// ---------------------------------------------------------------- sweep
 
 	async view_sweep() {
-		if (!this.is_sysmgr) {
+		if (!frappe.user.has_role("System Manager")) {
 			this.$main.html(`
 				${this.head(__("Bulk Sweep"), __("Assign profiles in bulk from the map"))}
 				<div class="ra-card"><div class="ra-empty">${__(
@@ -3313,7 +3147,7 @@ class App {
 	// ---------------------------------------------------------------- admin
 
 	async view_admin() {
-		const sysadmin = this.is_sysmgr;
+		const sysadmin = frappe.user.has_role("System Manager");
 		this.$main.html(`
 			${this.head(
 				__("Delegates & Policy"),
@@ -3509,8 +3343,8 @@ class App {
 	async view_audit() {
 		this.$main.html(`
 			${this.head(
-				__("Assignment Log"),
-				__("Every assignment this app made, including the ones that changed nothing")
+				__("Audit Trail"),
+				__("Every assignment ever made, including the ones that changed nothing")
 			)}
 			<div class="ra-card">
 				<div class="ra-card__head"><h3>${__("Assignments")}</h3><div class="ra-meta">${__("newest first · rows cannot be edited or deleted")}</div></div>
@@ -3550,243 +3384,4 @@ class App {
 			this.open_log($(event.currentTarget).data("log"));
 		});
 	}
-
-	// ----------------------------------------------------------- audit trail
-
-	/* The Assignment Log above shows what this app did - 13 rows. This shows
-	   what actually happened to access on the site, from any source, netted out
-	   of tabVersion. The two are deliberately separate: one is a decision
-	   record, the other is the history. */
-	async view_trail() {
-		this.$main.html(`
-			${this.head(
-				__("Audit Trail"),
-				__("Every real access change, whoever made it - including changes that bypassed this app")
-			)}
-			<div class="ra-card">
-				<div class="ra-card__head">
-					<h3>${__("Filter")}</h3>
-					<div class="ra-meta ra-trrange">
-						<button data-days="7">${__("7 days")}</button>
-						<button data-days="30" class="on">${__("30 days")}</button>
-						<button data-days="90">${__("90 days")}</button>
-					</div>
-				</div>
-				<div class="ra-trwho"></div>
-			</div>
-			<div class="ra-card">
-				<div class="ra-card__head">
-					<h3>${__("Changes")}</h3>
-					<div class="ra-meta ra-trcount"></div>
-				</div>
-				<div class="ra-list ra-trrows"><div class="ra-empty"><span class="ra-spinner"></span></div></div>
-			</div>
-			<div class="ra-card">
-				<div class="ra-card__head"><h3>${__("What this cannot show")}</h3></div>
-				<div class="ra-trlimits ra-lmeta"></div>
-			</div>
-		`);
-
-		this.tr = this.tr || { user: "", days: 30 };
-
-		const run = async () => {
-			const $rows = this.$main.find(".ra-trrows");
-			$rows.html(`<div class="ra-empty"><span class="ra-spinner"></span></div>`);
-
-			const end = frappe.datetime.get_today();
-			const start = frappe.datetime.add_days(end, -this.tr.days);
-
-			let out;
-			try {
-				out = await frappe.xcall("upande_core.audit_trail.trail", {
-					target: this.tr.user || null,
-					start: start,
-					end: end,
-					page_size: 50,
-				});
-			} catch (error) {
-				$rows.html(`<div class="ra-empty">${esc(error.message || __("Could not read the trail."))}</div>`);
-				return;
-			}
-
-			// Most version rows carry no net change, so a short list from a long
-			// scan is the correct answer. Saying both numbers stops it reading
-			// as a bug.
-			this.$main.find(".ra-trcount").text(
-				__("{0} shown from {1} scanned{2}", [
-					num(out.surfaced),
-					num(out.scanned),
-					out.unparsed ? __(" · {0} unreadable", [num(out.unparsed)]) : "",
-				])
-			);
-
-			this.$main.find(".ra-trlimits").html(
-				(out.limits && out.limits.uncovered ? out.limits.uncovered : [])
-					.map((line) => `<div>${esc(line)}</div>`)
-					.join("") +
-					`<div>${__("Attribution is inferred from timing, not stamped on the write.")}</div>`
-			);
-
-			$rows.html(
-				out.rows.length
-					? out.rows.map((row) => this.trail_row(row)).join("")
-					: `<div class="ra-empty">${__("No access changed in this window.")}</div>`
-			);
-
-			$rows.find(".ra-lrow").on("click", (event) => {
-				this.open_trail_event($(event.currentTarget).data("version"));
-			});
-		};
-
-		/* Any user, not only the ones the caller administers: reading history is
-		   not granting anything, and the endpoint applies its own scoping. */
-		this.tr_picker = picker(this.$main.find(".ra-trwho"), {
-			label: __("Whose access"),
-			placeholder: __("Leave blank for everyone"),
-			onPick: (value) => {
-				this.tr.user = value || "";
-				run();
-			},
-		});
-
-		this.$main.find(".ra-trrange button").on("click", (event) => {
-			const $b = $(event.currentTarget);
-			this.$main.find(".ra-trrange button").removeClass("on");
-			$b.addClass("on");
-			this.tr.days = cint($b.data("days"));
-			run();
-		});
-
-		run();
-	}
-
-	trail_row(row) {
-		const SOURCE = {
-			role_advisor: { cls: "", label: __("via Role Advisor") },
-			system: { cls: "mute", label: __("automated") },
-			external: { cls: "bad", label: __("outside Role Advisor") },
-		};
-		const source = SOURCE[row.source] || SOURCE.external;
-
-		const change = [];
-		if (row.profile_before || row.profile_after) {
-			change.push(
-				`${esc(row.profile_before || __("no profile"))} → ${esc(row.profile_after || __("no profile"))}`
-			);
-		}
-		(row.roles_gained || []).forEach((r) => change.push(`<span class="ra-chip">+${esc(r)}</span>`));
-		(row.roles_lost || []).forEach((r) => change.push(`<span class="ra-chip bad">−${esc(r)}</span>`));
-		(row.modules_blocked || []).forEach((m) =>
-			change.push(`<span class="ra-chip mute">${__("blocked")} ${esc(m)}</span>`)
-		);
-		(row.modules_unblocked || []).forEach((m) =>
-			change.push(`<span class="ra-chip mute">${__("unblocked")} ${esc(m)}</span>`)
-		);
-		(row.fields || []).forEach((field) =>
-			change.push(`${esc(field[0])}: ${esc(field[1])} → ${esc(field[2])}`)
-		);
-
-		return `
-			<div class="ra-lrow clickable" data-version="${esc(row.version)}">
-				<div class="ra-rank">${esc((row.actor || "?").slice(0, 2).toUpperCase())}</div>
-				<div>
-					<div class="ra-name">${esc(row.document)} <span class="ra-chip ${source.cls}">${source.label}</span></div>
-					<div class="ra-lmeta">${change.join(" · ") || __("no net change")}</div>
-					<div class="ra-lmeta">${row.doctype !== "User" ? esc(row.doctype) + " · " : ""}${__(
-						"by"
-					)} ${esc(row.actor_name || row.actor)} · ${frappe.datetime.comment_when(row.when)}</div>
-				</div>
-			</div>`;
-	}
-
-	/* The netted row is what makes the trail readable; the raw blob is what
-	   makes it provable, cancelled events and all.
-
-	   A drawer, not frappe.ui.Dialog: this page is served from www/, where the
-	   desk form bundle is absent and Dialog dies on
-	   `frappe.ui.form.make_control is not a function`. Every other detail view
-	   here uses the drawer for the same reason. */
-	async open_trail_event(version) {
-		const { $drawer } = this.loading_drawer(__("Change"));
-
-		let d;
-		try {
-			d = await frappe.xcall("upande_core.audit_trail.event", { version: version });
-		} catch (error) {
-			$drawer.find(".ra-drawer__body").html(`<div class="ra-empty">${esc(error.message)}</div>`);
-			return;
-		}
-
-		$drawer.find("h2").text(d.document);
-		$drawer
-			.find("small")
-			.text(
-				__("{0} · by {1} · {2}", [d.doctype, d.actor, frappe.datetime.str_to_user(d.when)])
-			);
-
-		const delta = d.delta || {};
-		const badges = (items, cls) =>
-			items && items.length
-				? items.map((item) => `<span class="ra-badge ${cls}">${esc(item)}</span>`).join("")
-				: `<span class="ra-meta">${__("none")}</span>`;
-
-		$drawer.find(".ra-drawer__body").html(`
-			<div class="ra-card ra-sect">
-				<dl class="ra-kv">
-					<dt>${__("Profile before")}</dt><dd>${esc(delta.profile_before || __("none"))}</dd>
-					<dt>${__("Profile after")}</dt><dd>${esc(delta.profile_after || __("none"))}</dd>
-					<dt>${__("Roles gained")}</dt><dd>${badges(delta.roles_gained, "good")}</dd>
-					<dt>${__("Roles lost")}</dt><dd>${badges(delta.roles_lost, "loss")}</dd>
-					<dt>${__("Modules blocked")}</dt><dd>${badges(delta.modules_blocked, "")}</dd>
-					<dt>${__("Modules unblocked")}</dt><dd>${badges(delta.modules_unblocked, "")}</dd>
-				</dl>
-			</div>
-			${
-				delta.fields && delta.fields.length
-					? `<div class="ra-card ra-sect">
-							<div class="ra-card__head"><h3>${__("Fields")}</h3></div>
-							<dl class="ra-kv">${delta.fields
-								.map(
-									(f) =>
-										`<dt>${esc(f[0])}</dt><dd>${esc(String(f[1] === null ? "—" : f[1]))} → ${esc(
-											String(f[2] === null ? "—" : f[2])
-										)}</dd>`
-								)
-								.join("")}</dl>
-						</div>`
-					: ""
-			}
-			${
-				d.logins && d.logins.length
-					? `<div class="ra-card ra-sect">
-							<div class="ra-card__head"><h3>${__("Sign-ins either side of this change")}</h3></div>
-							<div class="ra-lmeta">${d.logins
-								.map(
-									(l) =>
-										`${esc(l.operation)} ${esc(l.status)} · ${esc(
-											l.ip_address || "—"
-										)} · ${frappe.datetime.str_to_user(l.creation)}`
-								)
-								.join("<br>")}</div>
-						</div>`
-					: ""
-			}
-			<div class="ra-card ra-sect">
-				<div class="ra-card__head">
-					<h3>${__("What the database recorded")}</h3>
-					<div class="ra-meta">${__("including the events that cancelled")}</div>
-				</div>
-				<pre class="ra-raw" style="max-height:320px;overflow:auto;font-size:11px;white-space:pre-wrap">${esc(
-					JSON.stringify(d.raw, null, 1)
-				)}</pre>
-			</div>
-		`);
-	}
 }
-
-
-/* ------------------------------------------------------------------------- *
- * Exported surface. itops.js adds its groups and its `view_*` methods to this.
- * ------------------------------------------------------------------------- */
-window.UpandeAccess = { App, GROUPS, ICONS, VIEWS, indexViews, picker, getJSON, esc, num, cint };
-})();
