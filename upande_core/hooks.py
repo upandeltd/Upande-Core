@@ -9,6 +9,18 @@ app_license = "mit"
 # ------------------------
 after_migrate = "upande_core.install.after_migrate"
 
+# The IT dashboard is one page now. The three portal pages that used to hold
+# System Activity, Workforce and Monitor Config are views inside it, so their
+# old routes - which are in bookmarks and in the desk workspace - land there.
+website_redirects = [
+	{"source": "/it-operations", "target": "/it-dashboard#activity"},
+	{"source": "/it-workforce", "target": "/it-dashboard#workforce"},
+	{"source": "/it-operations-admin", "target": "/it-dashboard#monitor"},
+	{"source": "/role-advisor", "target": "/it-dashboard"},
+	{"source": "/access", "target": "/it-dashboard"},
+]
+
+
 # Document Events
 # ---------------
 doc_events = {
@@ -102,16 +114,22 @@ fixtures = [
 
 # required_apps = []
 
-# Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "upande_core",
-# 		"logo": "/assets/upande_core/logo.png",
-# 		"title": "Upande Core",
-# 		"route": "/upande_core",
-# 		"has_permission": "upande_core.api.permission.has_app_permission"
-# 	}
-# ]
+# The tile opens the workspace, not the dashboard. The workspace is where the
+# desk sidebar lives and where the records behind the page are listed, so
+# landing there gives somebody a choice of what to open; landing straight in the
+# dashboard takes that choice away and hides everything else the app has.
+#
+# The Upande mark rather than an app-specific one: this is Upande's tile on
+# Upande's apps screen, and every sibling app uses the same logo.
+add_to_apps_screen = [
+	{
+		"name": "upande_core",
+		"logo": "/assets/upande_core/images/upande-logo.png",
+		"title": "IT Operations",
+		"route": "/desk/it-operations",
+		"has_permission": "upande_core.permissions.has_app_permission",
+	}
+]
 
 # Includes in <head>
 # ------------------

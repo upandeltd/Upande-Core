@@ -1,8 +1,8 @@
 {
  "app": "upande_core",
  "charts": [],
- "content": "[{\"id\": \"07d566a89e\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Dashboards</b></span>\", \"col\": 12}}, {\"id\": \"6dcff3054a\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"IT Dashboard\", \"col\": 3}}, {\"id\": \"a2b1a80bc1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"System Activity\", \"col\": 3}}, {\"id\": \"a01326ce61\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Workforce\", \"col\": 3}}, {\"id\": \"fdef463d64\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Monitor Config\", \"col\": 3}}, {\"id\": \"84c1788b61\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"045392f4a8\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Quick Access</b></span>\", \"col\": 12}}, {\"id\": \"e6442279e1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Issues\", \"col\": 3}}, {\"id\": \"75b9c17dbc\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Assets\", \"col\": 3}}, {\"id\": \"3dc2063d24\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Users\", \"col\": 3}}, {\"id\": \"577363d99f\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"dea28ccede\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Records</b></span>\", \"col\": 12}}, {\"id\": \"57ab370d40\", \"type\": \"card\", \"data\": {\"card_name\": \"Helpdesk\", \"col\": 4}}, {\"id\": \"c3503e681b\", \"type\": \"card\", \"data\": {\"card_name\": \"Access & Identity\", \"col\": 4}}, {\"id\": \"34420b5b6b\", \"type\": \"card\", \"data\": {\"card_name\": \"Infrastructure\", \"col\": 4}}, {\"id\": \"e278cd102a\", \"type\": \"card\", \"data\": {\"card_name\": \"Monitoring & Audit\", \"col\": 4}}, {\"id\": \"0a9fb1b146\", \"type\": \"card\", \"data\": {\"card_name\": \"Configuration\", \"col\": 4}}]",
- "creation": "2026-08-21 12:52:37.983648",
+ "content": "[{\"id\": \"it_hd\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>IT Operations</b></span>\", \"col\": 12}}, {\"id\": \"it_p\", \"type\": \"paragraph\", \"data\": {\"text\": \"Access, helpdesk, infrastructure, monitoring, attendance and configuration are all one page at <b>/it-dashboard</b>. The records behind it are below.\", \"col\": 12}}, {\"id\": \"sc0\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"IT Operations\", \"col\": 3}}, {\"id\": \"sc1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Anomalies\", \"col\": 3}}, {\"id\": \"sc2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Grant Access\", \"col\": 3}}, {\"id\": \"sc3\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Incoming Requests\", \"col\": 3}}, {\"id\": \"sc4\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Helpdesk\", \"col\": 3}}, {\"id\": \"sc5\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"System Health\", \"col\": 3}}, {\"id\": \"sc6\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"My Access\", \"col\": 3}}, {\"id\": \"sp\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"hdr2\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Records</b></span>\", \"col\": 12}}, {\"id\": \"c0\", \"type\": \"card\", \"data\": {\"card_name\": \"Helpdesk\", \"col\": 4}}, {\"id\": \"c1\", \"type\": \"card\", \"data\": {\"card_name\": \"Access\", \"col\": 4}}, {\"id\": \"c2\", \"type\": \"card\", \"data\": {\"card_name\": \"Identity\", \"col\": 4}}, {\"id\": \"c3\", \"type\": \"card\", \"data\": {\"card_name\": \"Infrastructure\", \"col\": 4}}, {\"id\": \"c4\", \"type\": \"card\", \"data\": {\"card_name\": \"Monitoring\", \"col\": 4}}, {\"id\": \"c5\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}]",
+ "creation": "2026-08-21 22:26:13.342263",
  "custom_blocks": [],
  "docstatus": 0,
  "doctype": "Workspace",
@@ -56,7 +56,66 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Access & Identity",
+   "label": "Access",
+   "link_count": 5,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Designation Access Map",
+   "link_count": 0,
+   "link_to": "Designation Access Map",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Delegated User Admin",
+   "link_count": 0,
+   "link_to": "Delegated User Admin",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Access Assignment Log",
+   "link_count": 0,
+   "link_to": "Access Assignment Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Access Request",
+   "link_count": 0,
+   "link_to": "Access Request",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "User Access Settings",
+   "link_count": 0,
+   "link_to": "User Access Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Identity",
    "link_count": 4,
    "link_type": "DocType",
    "onboard": 0,
@@ -134,8 +193,8 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Monitoring & Audit",
-   "link_count": 3,
+   "label": "Monitoring",
+   "link_count": 5,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -173,15 +232,6 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Configuration",
-   "link_count": 2,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
    "label": "Monitored Doctype",
    "link_count": 0,
    "link_to": "Monitored Doctype",
@@ -198,9 +248,68 @@
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Reports",
+   "link_count": 5,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Designation Gap",
+   "link_count": 0,
+   "link_to": "Designation Gap",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Module Exposure",
+   "link_count": 0,
+   "link_to": "Module Exposure",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Role Drift",
+   "link_count": 0,
+   "link_to": "Role Drift",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "System Manager Audit",
+   "link_count": 0,
+   "link_to": "System Manager Audit",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Role Profile Overgrant",
+   "link_count": 0,
+   "link_to": "Role Profile Overgrant",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-08-21 12:52:37.983648",
+ "modified": "2026-08-21 22:27:49.597725",
  "modified_by": "Administrator",
  "module": "Upande Core",
  "name": "IT Operations",
@@ -214,51 +323,51 @@
   {
    "color": "Grey",
    "doc_view": "",
-   "label": "IT Dashboard",
+   "label": "IT Operations",
    "type": "URL",
    "url": "/it-dashboard"
   },
   {
    "color": "Grey",
    "doc_view": "",
-   "label": "System Activity",
+   "label": "Anomalies",
    "type": "URL",
-   "url": "/it-operations"
+   "url": "/it-dashboard#anomalies"
   },
   {
    "color": "Grey",
    "doc_view": "",
-   "label": "Workforce",
+   "label": "Grant Access",
    "type": "URL",
-   "url": "/it-workforce"
+   "url": "/it-dashboard#assign"
   },
   {
    "color": "Grey",
    "doc_view": "",
-   "label": "Monitor Config",
+   "label": "Incoming Requests",
    "type": "URL",
-   "url": "/it-operations-admin"
+   "url": "/it-dashboard#queue"
   },
   {
-   "color": "Blue",
+   "color": "Grey",
    "doc_view": "",
-   "label": "Issues",
-   "link_to": "Issue",
-   "type": "DocType"
+   "label": "Helpdesk",
+   "type": "URL",
+   "url": "/it-dashboard#helpdesk"
   },
   {
-   "color": "Blue",
+   "color": "Grey",
    "doc_view": "",
-   "label": "Assets",
-   "link_to": "Asset",
-   "type": "DocType"
+   "label": "System Health",
+   "type": "URL",
+   "url": "/it-dashboard#health"
   },
   {
-   "color": "Blue",
+   "color": "Grey",
    "doc_view": "",
-   "label": "Users",
-   "link_to": "User",
-   "type": "DocType"
+   "label": "My Access",
+   "type": "URL",
+   "url": "/my-access"
   }
  ],
  "title": "IT Operations",

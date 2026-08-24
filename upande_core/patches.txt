@@ -5,3 +5,6 @@
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
 upande_core.patches.migrate_rows_to_beds
+upande_core.patches.merge_it_workspace
+upande_core.patches.it_operations_desktop_icon
+upande_core.patches.it_operations_sidebar
