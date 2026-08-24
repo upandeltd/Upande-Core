@@ -1,0 +1,45 @@
+{
+ "app": "upande_core",
+ "charts": [],
+ "content": "[{\"id\": \"ra_head\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\">Moved</span>\", \"col\": 12}}, {\"id\": \"ra_p\", \"type\": \"paragraph\", \"data\": {\"text\": \"Access management is part of <b>IT Operations</b> now, at <b>/it-dashboard</b>. This workspace is kept only because the doctypes and reports behind it belong to this app.\", \"col\": 12}}, {\"id\": \"ra_sc\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"IT Operations\", \"col\": 4}}]",
+ "creation": "2026-08-21 00:00:00",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "users",
+ "idx": 1,
+ "is_hidden": 1,
+ "label": "User Access",
+ "links": [],
+ "modified": "2026-08-21 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Core",
+ "name": "User Access",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "User Manager"
+  }
+ ],
+ "sequence_id": 1.0,
+ "shortcuts": [
+  {
+   "color": "Grey",
+   "doc_view": "",
+   "label": "IT Operations",
+   "type": "URL",
+   "url": "/it-dashboard"
+  }
+ ],
+ "title": "User Access",
+ "type": "Workspace"
+}

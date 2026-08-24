@@ -7,7 +7,11 @@ app_license = "mit"
 
 # Installation / migration
 # ------------------------
+after_install = "upande_core.install.after_install"
 after_migrate = "upande_core.install.after_migrate"
+
+# Shipped by the access views, which render outside the desk.
+app_include_css = "/assets/upande_core/css/standalone.css"
 
 # The IT dashboard is one page now. The three portal pages that used to hold
 # System Activity, Workforce and Monitor Config are views inside it, so their
@@ -18,15 +22,61 @@ website_redirects = [
 	{"source": "/it-operations-admin", "target": "/it-dashboard#monitor"},
 	{"source": "/role-advisor", "target": "/it-dashboard"},
 	{"source": "/access", "target": "/it-dashboard"},
+	{"source": "/role_advisor", "target": "/it-dashboard"},
+	# The one access surface a non-administrator uses, and still a desk page.
+	{"source": "/my-access", "target": "/desk/my-access"},
 ]
 
 
 # Document Events
 # ---------------
+# The access entries invalidate the capability index and the anomaly cache: both
+# are derived from what roles and profiles grant, so any edit to a permission
+# source has to drop them or the dashboard reports yesterday's estate.
+_PERMISSION_SOURCE = {
+	"on_update": [
+		"upande_core.capability.on_permission_source_change",
+		"upande_core.anomalies.clear_cache",
+	],
+	"after_delete": [
+		"upande_core.capability.on_permission_source_change",
+		"upande_core.anomalies.clear_cache",
+	],
+}
+
 doc_events = {
 	"Warehouse": {
 		"on_update": "upande_core.warehouse_hooks.sync_farm_structure",
 	},
+	"Role Profile": _PERMISSION_SOURCE,
+	"Custom DocPerm": _PERMISSION_SOURCE,
+	"DocPerm": _PERMISSION_SOURCE,
+	"Delegated User Admin": {
+		"on_update": "upande_core.delegation.clear_cache",
+		"after_delete": "upande_core.delegation.clear_cache",
+	},
+	"User": {
+		"on_update": "upande_core.anomalies.clear_cache",
+		"after_delete": "upande_core.anomalies.clear_cache",
+	},
+	"Designation Access Map": {
+		"on_update": "upande_core.anomalies.clear_cache",
+		"after_delete": "upande_core.anomalies.clear_cache",
+	},
+}
+
+# Deny-only permission hooks. Core registers nothing for User Permission, which
+# is why that pair exists: without it a delegate could delete their own Company
+# scoping row and see every company's data.
+permission_query_conditions = {
+	"User": "upande_core.permissions.user_query_conditions",
+	"User Permission": "upande_core.permissions.user_permission_query_conditions",
+}
+
+has_permission = {
+	"User": "upande_core.permissions.user_has_permission",
+	"User Permission": "upande_core.permissions.user_permission_has_permission",
+	"Delegated User Admin": "upande_core.permissions.delegated_admin_has_permission",
 }
 
 # DocType JS shipped from the app (no site Client Scripts)
