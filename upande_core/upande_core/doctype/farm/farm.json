@@ -2,13 +2,13 @@
  "actions": [],
  "allow_rename": 1,
  "autoname": "field:farm_name",
- "creation": "2026-07-15 12:00:00.000000",
+ "creation": "2026-07-15 12:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "farm_section",
-  "company",
   "farm_name",
+  "company",
   "farm_type",
   "farm_approver",
   "column_break_farm",
@@ -16,6 +16,7 @@
   "farm_code",
   "area",
   "is_default",
+  "farm_location",
   "location_section",
   "location"
  ],
@@ -46,7 +47,6 @@
    "description": "Pick all structure levels this farm uses, e.g. Has Phases, Has Greenhouses, Has Beds",
    "fieldname": "farm_type",
    "fieldtype": "Table MultiSelect",
-   "in_list_view": 1,
    "label": "Farm Type",
    "options": "Farm Type Item",
    "reqd": 1
@@ -96,11 +96,17 @@
    "fieldname": "location",
    "fieldtype": "Geolocation",
    "label": "Farm Boundary"
+  },
+  {
+   "fieldname": "farm_location",
+   "fieldtype": "Link",
+   "label": "Farm Location",
+   "options": "Location"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-15 12:00:00.000000",
+ "modified": "2026-08-27 12:46:46.484541",
  "modified_by": "Administrator",
  "module": "Upande Core",
  "name": "Farm",
@@ -140,6 +146,7 @@
    "share": 1
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []
