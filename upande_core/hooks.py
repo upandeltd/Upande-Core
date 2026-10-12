@@ -7,6 +7,7 @@ app_license = "mit"
 
 # Installation / migration
 # ------------------------
+before_migrate = "upande_core.install.before_migrate"
 after_migrate = "upande_core.install.after_migrate"
 
 # Document Events
@@ -277,8 +278,10 @@ fixtures = [
 
 # Request Events
 # ----------------
-# before_request = ["upande_core.utils.before_request"]
-# after_request = ["upande_core.utils.after_request"]
+# Per-request phase profiler. Inert unless `devtools_profiler` is set in site
+# config; see upande_core/devtools/profiler.py.
+before_request = ["upande_core.devtools.profiler.before_request"]
+after_request = ["upande_core.devtools.profiler.after_request"]
 
 # Job Events
 # ----------
@@ -319,9 +322,11 @@ fixtures = [
 # Automatically update python controller files with type annotations for this app.
 # export_python_type_annotations = True
 
-# default_log_clearing_doctypes = {
-# 	"Logging DocType Name": 30  # days to retain logs
-# }
+# Log retention is handled by frappe's Log Settings (it calls
+# APIPhaseProfile.clear_old_logs), so no cleanup scheduler of our own.
+default_log_clearing_doctypes = {
+	"API Phase Profile": 7,
+}
 
 # Translation
 # ------------
