@@ -27,6 +27,7 @@ def after_migrate():
 	# they were folded into this app - their install hook never ran here.
 	seed_settings()
 	sync_it_workspace()
+	sync_desktop_marks()
 
 
 def sync_it_workspace():
@@ -38,6 +39,16 @@ def sync_it_workspace():
 	except Exception:
 		# A cosmetic failure must not stop the migrate of every other app on the bench.
 		frappe.log_error(title="IT Dashboard workspace sync failed")
+
+
+def sync_desktop_marks():
+	"""Animated marks for the Packhouse, Production and Quality tiles."""
+	try:
+		from upande_core import desktop_marks
+
+		desktop_marks.sync()
+	except Exception:
+		frappe.log_error(title="Desktop marks sync failed")
 
 
 def seed_settings():

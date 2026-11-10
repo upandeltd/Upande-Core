@@ -12,6 +12,8 @@ after_migrate = "upande_core.install.after_migrate"
 
 # Shipped by the access views, which render outside the desk.
 app_include_css = "/assets/upande_core/css/standalone.css"
+# Replays an apps-screen tile's animated mark when it is hovered.
+app_include_js = "/assets/upande_core/js/desktop_marks.js"
 
 # The IT dashboard is one page now. The three portal pages that used to hold
 # System Activity, Workforce and Monitor Config are views inside it, so their

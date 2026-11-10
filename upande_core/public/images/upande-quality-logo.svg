@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="Upande Quality">
+  <!--
+    Upande Quality mark, the sibling of the Upande CRM, Work Management and Irrigation marks. Plays once when it loads
+    (the desk replays it when the tile is hovered): a clipboard is checked: the tick is drawn, then a second. Then the Upande arrow rises out of it and grows to full size,
+    and the picture falls away. It comes to rest as the plain Upande arrow badge (the same artwork as upande-logo.png), so a
+    tile that has finished animating is indistinguishable from the static brand mark.
+
+    Pure CSS, no script: the desk draws this through <img>, where scripts never run anyway. With reduced motion set, only
+    the resting mark is shown.
+  -->
+  <style>
+    .arrow  { transform-box: view-box; transform-origin: 50px 50px;
+              animation: rise 2.4s cubic-bezier(.3,.7,.2,1) both; }
+    .pic    { animation: away 2.4s ease-in both; }
+    .tk1 { stroke-dasharray: 16; stroke-dashoffset: 16; animation: tick1 2.4s ease-out both; }
+    .tk2 { stroke-dasharray: 16; stroke-dashoffset: 16; animation: tick2 2.4s ease-out both; }
+    @keyframes tick1 { 0%, 8% { stroke-dashoffset: 16; } 24%, 100% { stroke-dashoffset: 0; } }
+    @keyframes tick2 { 0%, 28% { stroke-dashoffset: 16; } 44%, 100% { stroke-dashoffset: 0; } }
+    @keyframes rise {
+      0%, 32%   { transform: translate(0, 12px) scale(.3); opacity: 0; }
+      38%       { opacity: 1; }
+      56%, 64%  { transform: translate(0, -15px) scale(.36); opacity: 1; }
+      92%, 100% { transform: translate(0, 0) scale(1); opacity: 1; }
+    }
+    @keyframes away {
+      0%, 54%   { opacity: 1; transform: translate(0, 0); }
+      74%, 100% { opacity: 0; transform: translate(0, 10px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .arrow, .pic *, .pic { animation: none; }
+      .pic { display: none; }
+    }
+  </style>
+
+  <circle cx="50" cy="50" r="49.3" fill="#ffffff" stroke="#1c1b19" stroke-width="0.7"/>
+
+  <g class="pic">
+    <rect x="27" y="22" width="46" height="56" rx="5" fill="#f6f4f1" stroke="#45433f" stroke-width="2"/>
+    <rect x="38" y="17" width="24" height="10" rx="3" fill="#dcd8d2" stroke="#45433f" stroke-width="2"/>
+    <polyline class="tk1" points="34,43 38,47 45,39" fill="none" stroke="#1c1b19" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="52" y1="43" x2="66" y2="43" stroke="#9a958e" stroke-width="2.2" stroke-linecap="round"/>
+    <polyline class="tk2" points="34,60 38,64 45,56" fill="none" stroke="#1c1b19" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="52" y1="60" x2="66" y2="60" stroke="#9a958e" stroke-width="2.2" stroke-linecap="round"/>
+  </g>
+
+  <!-- the Upande arrow, traced from upande-logo.png -->
+  <g class="arrow">
+    <polygon points="24.4,23.8 64,23.8 64,36.3 24.4,36.3" fill="#635e59"/>
+    <polygon points="59.2,23.8 64,23.8 64,36.3 59.2,36.3" fill="#5a5752"/>
+    <polygon points="64,23.8 76.5,23.8 76.5,76.2 64,76.2" fill="#45433f"/>
+    <polygon points="24.4,64.6 50.5,38.5 64,36.3 64,47.9 35.8,76.2 24.4,76.2" fill="#45433f"/>
+    <polygon points="50,39.2 64,36.3 64,47.9 60.4,51.4 60.4,40.6" fill="#1c1b19"/>
+  </g>
+</svg>

@@ -12,6 +12,9 @@
         <img class="ph-side__logo" src="/assets/upande_core/images/upande-logo-v2.png" alt="Upande">
         <div class="ph-side__name">{{ site_title }}<small>{{ 'IT dashboard' if itd_is_it else 'App store' }}</small></div>
       </a>
+      {%- if itd_is_it %}
+      <a class="ph-iconbtn ph-iconbtn--flat ph-iconbtn--sm" href="/desk/it-dashboard" title="Back to the IT Dashboard workspace" aria-label="Back to the IT Dashboard workspace"><svg class="ph-ic" viewBox="0 0 24 24" aria-hidden="true">{{ itd_icons['home'] | safe }}</svg></a>
+      {%- endif %}
     </div>
     <nav class="ph-side__nav" id="nav">
       {%- for group, items in itd_nav %}
@@ -31,7 +34,7 @@
     <div class="ph-topbar">
       <button class="ph-iconbtn ph-iconbtn--flat ph-iconbtn--sm ph-menu-btn" id="ph-menu-btn" type="button" aria-label="Open navigation"><svg class="ph-ic" viewBox="0 0 24 24" aria-hidden="true">{{ itd_icons['menu'] | safe }}</svg></button>
       <button class="ph-iconbtn ph-iconbtn--flat ph-iconbtn--sm ph-collapse-btn" id="ph-collapse" type="button" aria-label="Collapse sidebar" title="Collapse sidebar"><svg class="ph-ic" viewBox="0 0 24 24" aria-hidden="true">{{ itd_icons['sidebar'] | safe }}</svg></button>
-      <div class="ph-topbar__crumb">{{ 'IT' if itd_is_it else 'Upande' }}<span>/</span><b id="crumb">{{ itd_title }}</b></div>
+      <div class="ph-topbar__crumb">{% if itd_is_it %}<a href="/desk/it-dashboard" title="Back to the IT Dashboard workspace" style="color:inherit;text-decoration:none">IT</a>{% else %}Upande{% endif %}<span>/</span><b id="crumb">{{ itd_title }}</b></div>
       <div class="ph-topbar__right">
         <span class="ph-updated" id="ph-updated" hidden></span>
         {%- if itd_is_it and itd_active != 'store' %}
