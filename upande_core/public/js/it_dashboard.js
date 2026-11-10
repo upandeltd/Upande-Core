@@ -435,9 +435,9 @@
   /* ---------- Devices ---------- */
   var FLAG_TEXT = { low_battery: 'Low battery', low_storage: 'Low storage', offline: 'Offline', outdated_os: 'Old system', outdated_app: 'Old app' };
   function devices(r) {
-    var state = r.q.get('state') || '', health = r.q.get('health') || '', q = r.q.get('search') || '';
-    return call('device_list', { app: appName, state: state, health: health, search: q }).then(function (d) {
-      function nav(over) { var o = { state: state, health: health, search: q }; Object.keys(over).forEach(function (k) { o[k] = over[k]; }); go('devices?' + qs(o)); }
+    var state = r.q.get('state') || '', health = r.q.get('health') || '', q = r.q.get('search') || '', uniq = r.q.get('unique') || '';
+    return call('device_list', { app: appName, state: state, health: health, search: q, unique: uniq }).then(function (d) {
+      function nav(over) { var o = { state: state, health: health, search: q, unique: uniq }; Object.keys(over).forEach(function (k) { o[k] = over[k]; }); go('devices?' + qs(o)); }
       var s = d.summary || {};
       var rows = [];
       d.rows.forEach(function (x) {
@@ -445,7 +445,7 @@
         rows.push(h('tr', { class: 'is-link', tabindex: 0, onclick: open, onkeydown: function (e) { if (e.key === 'Enter') open(); } }, [
           h('td', {}, who(x.owner_name || 'No owner', x.owner)),
           h('td', {}, x.device + (x.os_version ? ' · ' + x.platform + ' ' + x.os_version : '')),
-          h('td', {}, [x.app, ' ', h('span', { class: 'ph-muted' }, x.app_version)]),
+          h('td', {}, x.apps && x.apps.length > 1 ? [x.apps.join(', '), ' ', h('span', { class: 'ph-muted' }, x.installs + ' installs')] : [x.app, ' ', h('span', { class: 'ph-muted' }, x.app_version)]),
           h('td', {}, mono(x.serial_number)),
           h('td', {}, mono(x.mac_address)),
           h('td', {}, mono(x.android_id)),
@@ -464,6 +464,7 @@
           pills([['', 'All', d.total]].concat(Object.keys(FLAG_TEXT).filter(function (k) { return s[k] != null; }).map(function (k) { return [k, FLAG_TEXT[k], s[k]]; })), health, function (v) { nav({ health: v }); }),
           appSelect(),
           select([['', 'Any status'], ['Active', 'Active'], ['Lost', 'Lost'], ['Retired', 'Retired']], state, function (v) { nav({ state: v }); }, 'Device status'),
+          select([['', 'All installs'], ['1', 'Unique devices (Android ID)']], uniq, function (v) { nav({ unique: v }); }, 'Unique devices'),
           search('Search owner, model, serial, MAC or IP', q, function (v) { nav({ search: v }); })
         ]),
         card('', '', rows.length ? table(cols, rows) : empty('No devices match'), true)

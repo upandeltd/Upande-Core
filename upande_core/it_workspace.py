@@ -38,6 +38,11 @@ def sync():
 	_rename_old()
 	_nav_block()
 	_workspace()
+	try:
+		_legacy_sidebar()
+	except Exception:
+		# Never let navigation sugar fail a deploy; the error is logged and the next migrate retries.
+		frappe.log_error(title="IT Dashboard: legacy sidebar")
 	_desktop_icon()
 	frappe.db.commit()
 
@@ -69,6 +74,37 @@ def _nav_block():
 	# Public: per-tile gating happens in the block's own script, and the dashboard page gates itself.
 	doc.private = 0
 	doc.set("roles", [])
+	doc.save(ignore_permissions=True)
+
+
+def _legacy_sidebar():
+	"""Older Frappe 16 (before the per-module `Sidebar` doctype) navigates by `Workspace Sidebar`, and never imports the
+	module's sidebar file - so the tile had nothing to open. Build the same sidebar from that file, as site data."""
+	if frappe.db.exists("DocType", "Sidebar") or not frappe.db.exists("DocType", "Workspace Sidebar"):
+		return
+	path = os.path.join(os.path.dirname(__file__), "it_dashboard", "sidebar", "it_dashboard", "it_dashboard.json")
+	with open(path, encoding="utf-8") as fh:
+		src = json.load(fh)
+	if frappe.db.exists("Workspace Sidebar", NAME):
+		doc = frappe.get_doc("Workspace Sidebar", NAME)
+	else:
+		doc = frappe.new_doc("Workspace Sidebar")
+		doc.name = NAME
+	meta = frappe.get_meta("Workspace Sidebar")
+	item_fields = {f.fieldname for f in frappe.get_meta("Workspace Sidebar Item").fields}
+	doc.title = NAME
+	if meta.has_field("header_icon"):
+		doc.header_icon = src.get("header_icon")
+	if meta.has_field("module") and frappe.db.exists("Module Def", NAME):
+		doc.module = NAME
+	elif meta.has_field("module") and not doc.get("module"):
+		doc.module = "Upande Core"
+	if meta.has_field("app"):
+		doc.app = APP
+	doc.set("items", [])
+	for row in src["items"]:
+		doc.append("items", {k: v for k, v in row.items() if k in item_fields})
+	doc.flags.ignore_links = True
 	doc.save(ignore_permissions=True)
 
 

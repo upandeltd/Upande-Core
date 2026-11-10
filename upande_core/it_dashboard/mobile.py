@@ -536,9 +536,37 @@ def apps():
 # --------------------------------------------------------------------------- #
 
 
+def unique_by_android_id(rows):
+	"""One row per Android ID, the most recently seen install, carrying how many installs and which apps it stands for.
+	Rows with no Android ID cannot be matched, so each stays as it is."""
+	best, order, out = {}, [], []
+	for r in rows:
+		key = (r.get("android_id") or "").strip().lower()
+		if not key:
+			r["installs"] = 1
+			out.append(r)
+			continue
+		if key not in best:
+			order.append(key)
+			best[key] = {"row": r, "apps": []}
+		g = best[key]
+		if r["app"] not in g["apps"]:
+			g["apps"].append(r["app"])
+		g["count"] = g.get("count", 0) + 1
+		if (r.get("last_seen") or "") > (g["row"].get("last_seen") or ""):
+			g["row"] = r
+	for key in order:
+		g = best[key]
+		g["row"]["installs"] = g["count"]
+		g["row"]["apps"] = g["apps"]
+		out.append(g["row"])
+	return out
+
+
 @frappe.whitelist(methods=["GET"])
-def device_list(app=None, state=None, health=None, search=None):
-	"""Inventory: one row per device with its owner, health flags, state and notes."""
+def device_list(app=None, state=None, health=None, search=None, unique=None):
+	"""Inventory: one row per install with its owner, health flags, state and notes. `unique` folds the installs that share an
+	Android ID (the same phone running several apps, or reinstalled) into one row, the most recently seen."""
 	_require_it()
 	min_os = mon._min_os()
 	developer = is_developer()
@@ -598,6 +626,8 @@ def device_list(app=None, state=None, health=None, search=None):
 		if developer:
 			item["developer"] = {"install_id": r.install_id, "runtime": r.runtime_version, "first_seen": str(r.first_seen or ""), "launches": r.launches}
 		out.append(item)
+	if cint(unique):
+		out = unique_by_android_id(out)
 	out.sort(key=lambda d: (d["state"] != "Active", -len(d["flags"])))
 	return {"rows": out[:MAX_ROWS], "total": len(out), "summary": mon._health_counts(mon._text(app) or None), "developer": developer}
 

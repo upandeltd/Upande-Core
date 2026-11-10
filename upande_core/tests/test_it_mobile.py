@@ -110,3 +110,23 @@ class TestScrub(unittest.TestCase):
 	def test_github_headers_are_removed(self):
 		out = it.scrub('{"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}')
 		self.assertNotIn("github", out.lower())
+
+
+class TestUniqueDevices(unittest.TestCase):
+	def _row(self, i, app, android_id, seen):
+		return {"id": i, "app": app, "android_id": android_id, "last_seen": seen}
+
+	def test_installs_sharing_an_android_id_fold_into_the_latest(self):
+		rows = [
+			self._row("a", "Quality", "ABC123", "2026-11-01"),
+			self._row("b", "Packhouse", "abc123", "2026-11-05"),
+			self._row("c", "Security", "", "2026-11-02"),
+			self._row("d", "Security", "", "2026-11-03"),
+			self._row("e", "Quality", "XYZ", "2026-11-04"),
+		]
+		out = it.unique_by_android_id(rows)
+		self.assertEqual(sorted(r["id"] for r in out), ["b", "c", "d", "e"])
+		by = {r["id"]: r for r in out}
+		self.assertEqual(by["b"]["installs"], 2)
+		self.assertEqual(sorted(by["b"]["apps"]), ["Packhouse", "Quality"])
+		self.assertEqual(by["c"]["installs"], 1)
