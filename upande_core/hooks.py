@@ -152,14 +152,9 @@ fixtures = [
 	{
 		"doctype": "Monitored Doctype",
 	},
-	{
-		"doctype": "Workspace",
-		"filters": [["name", "=", "IT Operations"]],
-	},
-	{
-		"doctype": "Workspace Sidebar",
-		"filters": [["name", "=", "IT Operations"]],
-	},
+	# The IT Dashboard workspace, tile and navigation block are built from files by it_workspace.py on every migrate. They
+	# are not fixtures any more: the old IT Operations fixtures re-created that workspace, and a second apps-screen tile
+	# with no logo, on every migrate.
 ]
 
 # Apps
@@ -172,12 +167,12 @@ fixtures = [
 # landing there gives somebody a choice of what to open; landing straight in the
 # dashboard takes that choice away and hides everything else the app has.
 #
-# The Upande mark rather than an app-specific one: this is Upande's tile on
-# Upande's apps screen, and every sibling app uses the same logo.
+# The animated IT mark (a monitor's pulse, then the Upande arrow rises out and rests as the Upande badge). The apps
+# screen draws this through <img>, where its CSS animation plays, as does the desktop icon grid.
 add_to_apps_screen = [
 	{
 		"name": "upande_core",
-		"logo": "/assets/upande_core/images/upande-logo.png",
+		"logo": "/assets/upande_core/images/upande-it-logo.svg",
 		"title": "IT Dashboard",
 		"route": "/desk/it-dashboard",
 		"has_permission": "upande_core.permissions.has_app_permission",

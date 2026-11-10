@@ -43,8 +43,15 @@ def sync():
 
 
 def _rename_old():
-	if frappe.db.exists("Workspace", OLD) and not frappe.db.exists("Workspace", NAME):
-		frappe.rename_doc("Workspace", OLD, NAME, force=True)
+	if frappe.db.exists("Workspace", OLD):
+		if frappe.db.exists("Workspace", NAME):
+			# Both exist (an old fixture re-created the old one): the new one wins, so there is one workspace and one tile.
+			frappe.delete_doc("Workspace", OLD, force=True, ignore_permissions=True)
+		else:
+			frappe.rename_doc("Workspace", OLD, NAME, force=True)
+	# The old name's archived sidebar is never read, but is dropped with it.
+	if frappe.db.exists("Workspace Sidebar", OLD):
+		frappe.delete_doc("Workspace Sidebar", OLD, force=True, ignore_permissions=True)
 
 
 def _nav_block():
@@ -124,9 +131,12 @@ def _desktop_icon():
 		frappe.cache.delete_value("desktop_icons")
 		icon = doc
 
-	# The workspace-generated tile the rename left behind points at a workspace that is no longer called that.
-	for stale in frappe.get_all("Desktop Icon", filters={"link_to": OLD, "icon_type": ["!=", "App"]}, pluck="name"):
-		frappe.delete_doc("Desktop Icon", stale, force=True, ignore_permissions=True)
+	# The tile Frappe generated for the old workspace is a second, logo-less tile for the same place. It is found by its
+	# label (the old name) or by pointing at the workspace, and is never the App tile.
+	stale = set(frappe.get_all("Desktop Icon", filters={"label": OLD, "icon_type": ["!=", "App"]}, pluck="name"))
+	stale |= set(frappe.get_all("Desktop Icon", filters={"link_to": ["in", [OLD, NAME]], "icon_type": ["!=", "App"]}, pluck="name"))
+	for name in stale:
+		frappe.delete_doc("Desktop Icon", name, force=True, ignore_permissions=True)
 
 	from upande_core.patches import it_operations_desktop_icon as layouts
 
