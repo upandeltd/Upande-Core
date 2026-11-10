@@ -12,4 +12,4 @@ upande_core.patches.it_operations_desktop_icon
 upande_core.patches.it_operations_sidebar
 upande_core.patches.v1_1.clear_user_access_workspace
 upande_core.patches.v1_1.hide_user_access_workspace
-
+upande_core.patches.v1_2.it_dashboard_workspace
