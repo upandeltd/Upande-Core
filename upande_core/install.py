@@ -26,6 +26,18 @@ def after_migrate():
 	# Idempotent, and needed on every site that had the access doctypes before
 	# they were folded into this app - their install hook never ran here.
 	seed_settings()
+	sync_it_workspace()
+
+
+def sync_it_workspace():
+	"""The IT Dashboard workspace, sidebar, navigation block and apps-screen tile, from the files in this app."""
+	try:
+		from upande_core import it_workspace
+
+		it_workspace.sync()
+	except Exception:
+		# A cosmetic failure must not stop the migrate of every other app on the bench.
+		frappe.log_error(title="IT Dashboard workspace sync failed")
 
 
 def seed_settings():

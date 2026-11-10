@@ -17,9 +17,12 @@ app_include_css = "/assets/upande_core/css/standalone.css"
 # System Activity, Workforce and Monitor Config are views inside it, so their
 # old routes - which are in bookmarks and in the desk workspace - land there.
 website_redirects = [
-	{"source": "/it-operations", "target": "/it-dashboard#activity"},
-	{"source": "/it-workforce", "target": "/it-dashboard#workforce"},
-	{"source": "/it-operations-admin", "target": "/it-dashboard#monitor"},
+	# The IT dashboard is one page now. Every earlier address lands on it: the three IT Operations portal pages, Role
+	# Advisor's, and the mobile monitor that used to live in the upande_mobile app.
+	{"source": "/mobile-monitor", "target": "/it-dashboard"},
+	{"source": "/it-operations", "target": "/it-dashboard"},
+	{"source": "/it-workforce", "target": "/it-dashboard"},
+	{"source": "/it-operations-admin", "target": "/it-dashboard"},
 	{"source": "/role-advisor", "target": "/it-dashboard"},
 	{"source": "/access", "target": "/it-dashboard"},
 	{"source": "/role_advisor", "target": "/it-dashboard"},
@@ -149,14 +152,9 @@ fixtures = [
 	{
 		"doctype": "Monitored Doctype",
 	},
-	{
-		"doctype": "Workspace",
-		"filters": [["name", "=", "IT Operations"]],
-	},
-	{
-		"doctype": "Workspace Sidebar",
-		"filters": [["name", "=", "IT Operations"]],
-	},
+	# The IT Dashboard workspace, tile and navigation block are built from files by it_workspace.py on every migrate. They
+	# are not fixtures any more: the old IT Operations fixtures re-created that workspace, and a second apps-screen tile
+	# with no logo, on every migrate.
 ]
 
 # Apps
@@ -169,14 +167,14 @@ fixtures = [
 # landing there gives somebody a choice of what to open; landing straight in the
 # dashboard takes that choice away and hides everything else the app has.
 #
-# The Upande mark rather than an app-specific one: this is Upande's tile on
-# Upande's apps screen, and every sibling app uses the same logo.
+# The animated IT mark (a monitor's pulse, then the Upande arrow rises out and rests as the Upande badge). The apps
+# screen draws this through <img>, where its CSS animation plays, as does the desktop icon grid.
 add_to_apps_screen = [
 	{
 		"name": "upande_core",
-		"logo": "/assets/upande_core/images/upande-logo.png",
-		"title": "IT Operations",
-		"route": "/desk/it-operations",
+		"logo": "/assets/upande_core/images/upande-it-logo.svg",
+		"title": "IT Dashboard",
+		"route": "/desk/it-dashboard",
 		"has_permission": "upande_core.permissions.has_app_permission",
 	}
 ]
