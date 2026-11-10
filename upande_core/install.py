@@ -28,6 +28,7 @@ def after_migrate():
 	seed_settings()
 	sync_it_workspace()
 	sync_desktop_marks()
+	ensure_access_requests()
 
 
 def sync_it_workspace():
@@ -39,6 +40,16 @@ def sync_it_workspace():
 	except Exception:
 		# A cosmetic failure must not stop the migrate of every other app on the bench.
 		frappe.log_error(title="IT Dashboard workspace sync failed")
+
+
+def ensure_access_requests():
+	"""The Issue Type and fields behind doctype access requests."""
+	try:
+		from upande_core.access_requests import setup
+
+		setup.ensure()
+	except Exception:
+		frappe.log_error(title="Access request setup failed")
 
 
 def sync_desktop_marks():

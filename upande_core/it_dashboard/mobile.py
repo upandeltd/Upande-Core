@@ -864,20 +864,34 @@ def _display(user_ids):
 	return {u.name: u.full_name for u in frappe.get_all("User", filters={"name": ["in", list(user_ids)]}, fields=["name", "full_name"])}
 
 
+ACCESS_TYPE = "Doctype Access"
+
+
+def _access_columns(issue):
+	"""What marks an inbox row as a request for access to a doctype; nothing for any other conversation."""
+	if issue.get("issue_type") != ACCESS_TYPE:
+		return {}
+	return {"kind": "access", "doctype": issue.get("custom_access_doctype") or "", "ptypes": issue.get("custom_access_ptypes") or "", "app": "Access"}
+
+
 def _inbox_rows(app, status):
 	"""Conversations as one list whichever doctype the site uses; awaiting-answer first, longest wait on top."""
 	now_dt = now_datetime()
 	rows = []
 	if sup.support_doctype() == sup.ISSUE:
 		apps = [app] if app else frappe.get_all(MOBILE_APP, pluck="name")
-		if not apps:
+		# Requests for access to a doctype (access_requests/) arrive as Issues too, with no app: they show under "all apps".
+		access = (not app) and bool(frappe.db.has_column("Issue", "custom_access_doctype"))
+		or_filters = [["subject", "like", f"[{a}]%"] for a in apps] + ([["issue_type", "=", ACCESS_TYPE]] if access else [])
+		if not or_filters:
 			return []
 		filters = [["status", "=", status]] if status else []
 		issues = frappe.get_all(
 			sup.ISSUE,
 			filters=filters,
-			or_filters=[["subject", "like", f"[{a}]%"] for a in apps],
-			fields=["name", "subject", "status", "raised_by", "creation", "description"],
+			or_filters=or_filters,
+			fields=["name", "subject", "status", "raised_by", "creation", "description"]
+			+ (["issue_type", "custom_access_doctype", "custom_access_ptypes"] if access else []),
 			order_by="creation desc",
 			limit_page_length=MAX_ROWS,
 		)
@@ -904,6 +918,7 @@ def _inbox_rows(app, status):
 					"last_activity": str((last or {}).get("creation") or i.creation),
 					"preview": scrub((sup.plain_text(last.get("content")) if last else (sup.parse_issue_description(i.description)[0] or ""))[:120]),
 					"messages": len(cs) + 1,
+					**_access_columns(i),
 				}
 			)
 	else:

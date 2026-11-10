@@ -1002,20 +1002,22 @@
     var open = r.parts[1] || '';
     return call('inbox', { app: appName, status: status }).then(function (d) {
       var rows = onlyWaiting ? d.rows.filter(function (c) { return c.waiting; }) : d.rows;
-      if (!open && rows.length && window.innerWidth > 1000) open = rows[0].id;
+      var accessIds = {}; rows.forEach(function (c) { if (c.kind === 'access') accessIds[c.id] = 1; });
+      if (!open && rows.length && window.innerWidth > 1000) { var firstChat = rows.filter(function (c) { return c.kind !== 'access'; })[0]; open = firstChat ? firstChat.id : ''; }
       function nav(over) { var o = { status: status, waiting: onlyWaiting ? '1' : '' }; Object.keys(over).forEach(function (k) { o[k] = over[k]; }); go('support?' + qs(o)); }
       var list = h('section', { class: 'ph-card itd-inbox' }, [
         h('div', { class: 'itd-pane__head' }, [h('div', { class: 'ph-card__title' }, 'Conversations'), h('div', { class: 'ph-card__meta' }, plural(rows.length, 'conversation'))]),
         h('div', { class: 'itd-pane__body' }, rows.length ? rows.map(function (c) {
           var done = c.status === 'Resolved' || c.status === 'Closed';
           var url = 'support/' + encodeURIComponent(c.id) + '?' + qs({ status: status, waiting: onlyWaiting ? '1' : '' });
-          return h('button', { type: 'button', class: 'itd-thread' + (c.id === open ? ' is-on' : ''), onclick: function () { go(url); } }, [
+          var isAccess = c.kind === 'access';
+          return h('button', { type: 'button', class: 'itd-thread' + (c.id === open ? ' is-on' : ''), onclick: function () { if (isAccess) openAccessRequest(c.id); else go(url); } }, [
             h('div', { class: 'ph-avatar' }, initials(c.person || c.user)),
             h('div', { class: 'itd-thread__main' }, [
               h('div', { class: 'ph-flex ph-flex--between' }, [h('b', {}, c.person || c.user), h('span', { class: 'ph-muted', style: 'font-size:11px;white-space:nowrap' }, ago(c.last_activity))]),
               h('div', { class: 'itd-thread__email' }, c.email && c.email !== c.person ? c.email : c.app),
               h('p', {}, c.subject + (c.preview ? ' — ' + c.preview : '')),
-              h('div', { class: 'ph-flex ph-flex--wrap' }, [c.waiting ? badge('Waiting ' + (c.waiting_hours < 1 ? 'under an hour' : plural(c.waiting_hours, 'hour')), c.waiting_hours >= 24 ? 'bad' : 'warn') : badge(done ? c.status : 'Answered', done ? 'good' : ''), badge(c.app, 'outline')])
+              h('div', { class: 'ph-flex ph-flex--wrap' }, [isAccess ? badge('Access request', 'signal') : null, c.waiting ? badge('Waiting ' + (c.waiting_hours < 1 ? 'under an hour' : plural(c.waiting_hours, 'hour')), c.waiting_hours >= 24 ? 'bad' : 'warn') : badge(done ? c.status : 'Answered', done ? 'good' : ''), badge(c.app, 'outline')])
             ])
           ]);
         }) : empty('No conversations', onlyWaiting ? 'Nobody is waiting for an answer.' : 'Reports and chats from the apps appear here.'))
@@ -1030,12 +1032,62 @@
         ]),
         h('div', { class: 'itd-msgr' }, [list, chatSlot, infoSlot])
       ]);
-      if (open) openConversation(open, chatSlot, infoSlot);
+      if (open && accessIds[open]) openAccessRequest(open);
+      else if (open) openConversation(open, chatSlot, infoSlot);
       timer = setInterval(function () {
         var t = document.querySelector('.itd-compose textarea');
         if (!document.hidden && !(t && t.value)) render();
       }, 30000);
     });
+  }
+  /* A request for access to a doctype: who, what, what they have now, and the one step that gives it. */
+  var PTYPE_WORDS = { select: 'Find', read: 'Read', write: 'Edit', create: 'Create', delete: 'Delete', submit: 'Submit', cancel: 'Cancel', amend: 'Amend', print: 'Print', email: 'Email', report: 'Reports', import: 'Import', export: 'Export', share: 'Share', mask: 'See hidden values' };
+  function openAccessRequest(id) {
+    return call('access.detail', { name: id }).then(function (d) {
+      var close;
+      var chosen = {}; d.asked.forEach(function (p) { chosen[p] = 1; });
+      var checks = d.applicable.map(function (p) {
+        var have = d.have[p];
+        var box = h('input', { type: 'checkbox', disabled: have || d.closed || !!d.refusal, onchange: function () { if (box.checked) chosen[p] = 1; else delete chosen[p]; } });
+        box.checked = have || !!chosen[p];
+        return h('label', { class: 'ph-flex', style: 'gap:8px;align-items:center;padding:4px 0' }, [box, h('span', {}, PTYPE_WORDS[p] || p), have ? badge('has it', 'good') : (d.asked.indexOf(p) >= 0 ? badge('asked for', 'warn') : null)]);
+      });
+      // The narrow role made for this doctype is the default: an existing role also gives whatever else it carries.
+      var mode = 'new';
+      var roleSel = select(d.suggested.map(function (r) { return [r.role, r.role + ' · gives ' + r.gives.join(', ') + (r.all ? '' : ' (not all)')]; }), d.suggested.length ? d.suggested[0].role : '', function () { mode = 'role'; modeRole.checked = true; }, 'Role');
+      var modeRole = h('input', { type: 'radio', name: 'arm', disabled: !d.suggested.length, onchange: function () { mode = 'role'; } }), modeNew = h('input', { type: 'radio', name: 'arm', onchange: function () { mode = 'new'; } });
+      modeRole.checked = mode === 'role'; modeNew.checked = mode === 'new';
+      function give() {
+        var picked = Object.keys(chosen).filter(function (p) { return !d.have[p]; });
+        if (!picked.length) { toast('Tick what to give.', 'bad'); return; }
+        var args = { name: d.id, ptypes: JSON.stringify(picked) };
+        if (mode === 'role') args.role = roleSel.value;
+        btnGive.disabled = true;
+        call('access.grant', args, true).then(function () { toast('Access given to ' + d.person, 'good'); close(); render(); }).catch(function (e) { btnGive.disabled = false; fail(e); });
+      }
+      var note = h('input', { class: 'ph-control', type: 'text', placeholder: 'Why not (optional)' });
+      var btnGive = h('button', { class: 'ph-btn ph-btn--primary', type: 'button', onclick: give }, 'Give access');
+      var btnNo = h('button', { class: 'ph-btn ph-btn--ghost', type: 'button', onclick: function () {
+        call('access.decline', { name: d.id, note: note.value }, true).then(function () { toast('Request closed', 'good'); close(); render(); }).catch(fail);
+      } }, 'Decline');
+      var body = h('div', { class: 'ph-stack ph-stack--lg' }, [
+        h('div', { class: 'ph-flex ph-flex--wrap' }, [badge('Access request', 'signal'), badge(d.status, d.closed ? 'good' : 'warn'), badge(d.doctype, 'outline')]),
+        kvList([['Person', d.person + (d.user !== d.person ? ' (' + d.user + ')' : '')], ['Doctype', d.doctype], ['Document', d.document], ['Where it happened', d.route], ['Asked for', d.asked.join(', ')], ['Still missing', d.lacking.join(', ') || 'nothing'], ['Their role profiles', d.profiles_now.join(', ')]]),
+        d.reason ? h('div', {}, [h('div', { class: 'ph-label', style: 'margin-bottom:var(--sp-2)' }, 'What they said'), h('div', { class: 'ph-muted', style: 'white-space:pre-wrap' }, d.reason)]) : null,
+        d.refusal ? h('div', { class: 'ph-note ph-note--warn' }, d.refusal) : null,
+        d.closed ? h('div', { class: 'ph-note' }, 'This request is ' + d.status.toLowerCase() + '.') : null,
+        h('div', {}, [h('div', { class: 'ph-label', style: 'margin-bottom:var(--sp-2)' }, d.closed ? 'Access on ' + d.doctype : 'What to give'), h('div', {}, checks)]),
+        d.closed || d.refusal ? null : h('div', { class: 'ph-stack' }, [
+          h('div', { class: 'ph-label' }, 'Give it through'),
+          h('label', { class: 'ph-flex', style: 'gap:8px;align-items:center' }, [modeRole, h('span', {}, 'An existing role'), roleSel]),
+          d.suggested.length ? h('div', { class: 'ph-muted', style: 'font-size:12px;margin:-4px 0 0 24px' }, 'An existing role also gives everything else it carries, on other doctypes too.') : null,
+          h('label', { class: 'ph-flex', style: 'gap:8px;align-items:center' }, [modeNew, h('span', {}, 'A role made for this doctype: ' + d.new_role + (d.new_role_exists ? ' (exists; it is extended)' : ''))]),
+          h('div', { class: 'ph-muted', style: 'font-size:12px' }, 'The person gets it through a role profile of the same name, like any other access. Write, create and delete also give read.')
+        ]),
+        d.closed ? null : h('div', { class: 'ph-flex ph-flex--wrap' }, d.refusal ? [note, btnNo] : [btnGive, note, btnNo])
+      ]);
+      close = drawer('Access to ' + d.doctype, d.person + ' · ' + d.asked.join(', '), body);
+    }).catch(fail);
   }
   function openConversation(id, chatSlot, infoSlot) {
     return call('conversation', { id: id }).then(function (c) {
