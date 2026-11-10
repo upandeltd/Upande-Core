@@ -33,7 +33,7 @@
    "open_in_new_tab": 0,
    "show_arrow": 0,
    "type": "Link",
-   "label": "IT Dashboard",
+   "label": "Dashboard",
    "link_type": "URL",
    "url": "/it-dashboard",
    "icon": "monitor"
@@ -410,7 +410,7 @@
    "link_to": "Issue"
   }
  ],
- "modified": "2026-11-10 17:37:37.000000",
+ "modified": "2026-11-10 17:47:56.000000",
  "modified_by": "Administrator",
  "module": "IT Dashboard",
  "name": "IT Dashboard",
