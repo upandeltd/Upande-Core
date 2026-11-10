@@ -14,7 +14,9 @@ bench install-app upande_core
 
 ### IT Dashboard
 
-`https://your.site/it-dashboard` is the IT dashboard, and the **IT Dashboard** workspace (with the Upande logo) and apps-screen tile open it. It replaces the earlier Role Advisor / IT Operations portal page.
+`https://your.site/it-dashboard` is the IT dashboard. It replaces the earlier Role Advisor / IT Operations portal page.
+
+The **IT Dashboard** workspace follows the Upande CRM design: an animated apps-screen tile (a monitor's pulse line, then the Upande arrow rises out of the screen and rests as the Upande badge), a workspace body that is a tile grid with live record counts, and the **IT Dashboard** module's own sidebar (`it_dashboard/sidebar/`). The tile, workspace and navigation block are rebuilt from the files in this app on every migrate (`upande_core/it_workspace.py`), so edit those files, not the records.
 
 **Who can open it:** people on the **IT Team** role profile, and no one else (Administrator always). Anyone else gets a page saying they cannot access it. If the site has no role profile with exactly that name, create one in Desk with the roles your IT staff need (not System Manager) and add the people.
 

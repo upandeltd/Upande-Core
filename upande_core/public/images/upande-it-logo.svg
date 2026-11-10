@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="Upande IT Dashboard">
+  <!--
+    Upande IT Dashboard mark. Plays once on load: a monitor shows a live pulse line, the Upande arrow rises out of the
+    screen and grows to full size, and the monitor falls away - the whole estate, watched from one place. It comes to rest
+    as the plain Upande arrow badge (the same artwork as upande-logo.png and the Upande CRM mark), so a tile that has
+    finished animating is indistinguishable from the static brand mark.
+
+    Pure CSS, no script: the desk draws this through <img>, where scripts never run anyway. With reduced motion set, only
+    the resting mark is shown.
+  -->
+  <style>
+    .arrow  { transform-box: view-box; transform-origin: 50px 50px;
+              animation: rise 2.2s cubic-bezier(.3,.7,.2,1) both; }
+    .mon    { animation: away 2.2s ease-in both; }
+    .pulse  { stroke-dasharray: 96; stroke-dashoffset: 96; animation: draw 2.2s ease-in-out both; }
+    @keyframes draw {
+      0%        { stroke-dashoffset: 96; }
+      30%, 100% { stroke-dashoffset: 0; }
+    }
+    @keyframes rise {
+      /* small and hidden behind the screen, up out of it, then home */
+      0%, 32%   { transform: translate(0, 12px) scale(.3); opacity: 0; }
+      38%       { opacity: 1; }
+      56%, 64%  { transform: translate(0, -15px) scale(.36); opacity: 1; }
+      92%, 100% { transform: translate(0, 0) scale(1); opacity: 1; }
+    }
+    @keyframes away {
+      0%, 54%   { opacity: 1; transform: translate(0, 0); }
+      74%, 100% { opacity: 0; transform: translate(0, 10px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .arrow, .pulse { animation: none; }
+      .pulse { stroke-dashoffset: 0; }
+      .mon { display: none; }
+    }
+  </style>
+
+  <circle cx="50" cy="50" r="49.3" fill="#ffffff" stroke="#1c1b19" stroke-width="0.7"/>
+
+  <g class="mon">
+    <!-- the monitor: stand and base, then the screen with its pulse line -->
+    <rect x="45" y="63" width="10" height="9" fill="#dcd8d2" stroke="#45433f" stroke-width="2" stroke-linejoin="round"/>
+    <line x1="36" y1="73" x2="64" y2="73" stroke="#45433f" stroke-width="2.4" stroke-linecap="round"/>
+    <rect x="20" y="26" width="60" height="38" rx="4" fill="#f6f4f1" stroke="#45433f" stroke-width="2"/>
+    <polyline class="pulse" points="26,46 38,46 43,36 50,57 56,40 60,46 74,46" fill="none" stroke="#1c1b19" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- the Upande arrow, traced from upande-logo.png -->
+  <g class="arrow">
+    <polygon points="24.4,23.8 64,23.8 64,36.3 24.4,36.3" fill="#635e59"/>
+    <polygon points="59.2,23.8 64,23.8 64,36.3 59.2,36.3" fill="#5a5752"/>
+    <polygon points="64,23.8 76.5,23.8 76.5,76.2 64,76.2" fill="#45433f"/>
+    <polygon points="24.4,64.6 50.5,38.5 64,36.3 64,47.9 35.8,76.2 24.4,76.2" fill="#45433f"/>
+    <polygon points="50,39.2 64,36.3 64,47.9 60.4,51.4 60.4,40.6" fill="#1c1b19"/>
+  </g>
+</svg>
