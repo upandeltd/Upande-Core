@@ -852,7 +852,11 @@
   }
 
   var KIND_BADGE = { crash: 'bad', error: 'warn', api: 'signal', log: '' };
+  function viewTabs(view, extra) {
+    return pills([['issues', 'Issues'], ['log', 'Error log']], view, function (v) { go('crashlytics?' + qs(Object.assign({ view: v === 'log' ? 'log' : '' }, extra || {}))); });
+  }
   function crashlytics(r) {
+    if (r.q.get('view') === 'log') return errorLog(r);
     var status = r.q.get('status') || 'Open', kind = r.q.get('kind') || '', q = r.q.get('search') || '';
     return call('problems', { app: appName, status: status, kind: kind, search: q }).then(function (d) {
       function nav(over) { var o = { status: status, kind: kind, search: q }; Object.keys(over).forEach(function (k) { o[k] = over[k]; }); go('crashlytics?' + qs(o)); }
@@ -877,6 +881,7 @@
       mount([
         head('IT dashboard · Crashlytics', 'Crashlytics', 'Crashes, errors and failed requests reported by your apps. Click an issue for the details and to resolve it.'),
         filters([
+          viewTabs('issues'),
           pills([['Open', 'Open', (d.by_status || {}).Open || 0], ['Resolved', 'Resolved', (d.by_status || {}).Resolved || 0], ['Ignored', 'Ignored', (d.by_status || {}).Ignored || 0]], status, function (v) { nav({ status: v }); }),
           select([['', 'All kinds'], ['crash', 'Crashes (' + (bk.crash || 0) + ')'], ['error', 'Errors (' + (bk.error || 0) + ')'], ['api', 'API failures (' + (bk.api || 0) + ')'], ['log', 'Logs (' + (bk.log || 0) + ')']], kind, function (v) { nav({ kind: v }); }, 'Kind'),
           appSelect(),
@@ -891,6 +896,64 @@
         card('', '', rows.length ? table(cols, rows) : empty('No issues', 'Nothing matches these filters.'), true)
       ]);
     });
+  }
+  /* The raw event log: who it came from, what it said; words like "payload" are hidden until you bring them back. */
+  function errorLog(r) {
+    var user = r.q.get('user') || '', kind = r.q.get('kind') || '', q = r.q.get('search') || '', page = parseInt(r.q.get('page') || '0', 10) || 0;
+    var hideParam = r.q.has('hide') ? r.q.get('hide') : null;
+    return call('error_log', { app: appName, user: user, kind: kind, search: q, hide: hideParam, page: page }).then(function (d) {
+      var hidden = d.hidden || [];
+      function nav(over) {
+        var o = { view: 'log', user: user, kind: kind, search: q, hide: hidden.join(',') || '-', page: 0 };
+        Object.keys(over).forEach(function (k) { o[k] = over[k]; });
+        go('crashlytics?' + qs(o));
+      }
+      var rows = d.rows.map(function (x) {
+        function open() { openLogEvent(x); }
+        return h('tr', { class: 'is-link', tabindex: 0, onclick: open, onkeydown: function (e) { if (e.key === 'Enter') open(); } }, [
+          h('td', {}, ago(x.ts)),
+          h('td', {}, who(x.person || 'Not signed in', x.user)),
+          h('td', {}, badge(x.kind, KIND_BADGE[x.kind])),
+          h('td', { class: 'itd-issue' }, [h('div', { class: 'ph-strong itd-clamp' }, x.title), x.screen ? h('div', { class: 'ph-mono ph-muted ph-truncate' }, x.screen) : null]),
+          h('td', {}, [x.app, ' ', h('span', { class: 'ph-muted' }, x.version)]),
+          h('td', {}, x.device || '—')
+        ]);
+      });
+      var cols = [{ label: 'When' }, { label: 'User' }, { label: 'Kind' }, { label: 'Error' }, { label: 'App' }, { label: 'Device' }];
+      var chips = hidden.map(function (t) {
+        return h('button', { class: 'ph-btn ph-btn--ghost', type: 'button', title: 'Show these again', onclick: function () { nav({ hide: hidden.filter(function (x) { return x !== t; }).join(',') || '-' }); } }, 'Hiding “' + t + '” ✕');
+      });
+      var addBox = h('input', { class: 'ph-control', type: 'text', placeholder: 'Hide titles containing…', style: 'max-width:220px', onkeydown: function (e) {
+        if (e.key === 'Enter' && addBox.value.trim()) nav({ hide: hidden.concat([addBox.value.trim()]).join(',') });
+      } });
+      var peopleOptions = [['', 'Everyone']].concat(d.people.map(function (p) { return [p.user, p.name + ' (' + p.count + ')']; }));
+      if (user && !d.people.some(function (p) { return p.user === user; })) peopleOptions.push([user, user]);
+      var pager = [];
+      if (page > 0) pager.push(h('button', { class: 'ph-btn ph-btn--ghost', type: 'button', onclick: function () { nav({ page: page - 1 }); } }, 'Newer'));
+      if (d.more) pager.push(h('button', { class: 'ph-btn ph-btn--ghost', type: 'button', onclick: function () { nav({ page: page + 1 }); } }, 'Older'));
+      mount([
+        head('IT dashboard · Crashlytics', 'Error log', 'Every report the apps sent, newest first. Filter by the person it came from or by what the title says. Click an entry for the full message.'),
+        filters([
+          viewTabs('log'),
+          select(peopleOptions, user, function (v) { nav({ user: v }); }, 'Created by'),
+          select([['', 'All kinds'], ['crash', 'Crashes'], ['error', 'Errors'], ['api', 'API failures'], ['log', 'Logs']], kind, function (v) { nav({ kind: v }); }, 'Kind'),
+          appSelect(),
+          search('Search the title, message or screen', q, function (v) { nav({ search: v }); })
+        ]),
+        h('div', { class: 'ph-flex ph-flex--wrap', style: 'align-items:center;gap:var(--sp-2);margin:var(--sp-3) 0' }, chips.concat([addBox, d.hidden_count ? h('span', { class: 'ph-muted' }, plural(d.hidden_count, 'entry', 'entries') + ' hidden') : null])),
+        card('', plural(d.shown, 'entry', 'entries'), rows.length ? table(cols, rows) : empty('No entries', 'Nothing matches these filters.'), true),
+        pager.length ? h('div', { class: 'ph-flex', style: 'gap:var(--sp-2);margin-top:var(--sp-3)' }, pager) : null
+      ]);
+    });
+  }
+  function openLogEvent(x) {
+    var body = h('div', { class: 'ph-stack ph-stack--lg' }, [
+      h('div', { class: 'ph-flex ph-flex--wrap' }, [badge(x.kind, KIND_BADGE[x.kind]), badge(x.app, 'outline'), x.fatal ? badge('Fatal', 'bad') : null]),
+      kvList([['When', x.ts], ['User', x.person ? x.person + (x.user && x.user !== x.person ? ' (' + x.user + ')' : '') : 'Not signed in'], ['Screen', x.screen], ['App version', x.version], ['Device', x.device], ['System', x.platform], ['Request', x.request]]),
+      h('div', {}, [h('div', { class: 'ph-label', style: 'margin-bottom:var(--sp-2)' }, 'Message'), h('pre', { class: 'itd-code' }, x.message || x.title)])
+    ]);
+    if (x.stack) body.appendChild(h('details', { class: 'itd-dev', open: true }, [h('summary', {}, 'Developer details'), h('pre', { class: 'itd-code' }, x.stack)]));
+    drawer(x.title, ago(x.ts), body);
   }
   function openIssue(p) {
     var who_ = h('div', { class: 'ph-muted' }, 'Loading…');

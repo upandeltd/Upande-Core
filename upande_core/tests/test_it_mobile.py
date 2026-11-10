@@ -130,3 +130,15 @@ class TestUniqueDevices(unittest.TestCase):
 		self.assertEqual(by["b"]["installs"], 2)
 		self.assertEqual(sorted(by["b"]["apps"]), ["Packhouse", "Quality"])
 		self.assertEqual(by["c"]["installs"], 1)
+
+
+class TestErrorLogFilters(unittest.TestCase):
+	def test_payload_is_hidden_unless_the_reader_says_otherwise(self):
+		self.assertEqual(it.hidden_terms(None), ["payload"])
+		self.assertEqual(it.hidden_terms("-"), [])
+		self.assertEqual(it.hidden_terms("Payload, timeout ,payload"), ["payload", "timeout"])
+
+	def test_clauses_and_params_line_up(self):
+		where, hidden, params = it._log_where("Quality", "a@b.c", "error", "boom", ["payload", "x"])
+		self.assertEqual(len(params), 1 + 1 + 1 + 3 + 3 * 2)
+		self.assertEqual(sum(c.count("%s") for c in where + hidden), len(params))
