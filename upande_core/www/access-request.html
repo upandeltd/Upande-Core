@@ -1,0 +1,99 @@
+{% extends "templates/web.html" %}
+{% block title %}Ask for access{% endblock %}
+{% block page_content %}
+<style>
+  .ar { --ink:#1c1b19; --mu:#6b6862; --line:#e6e3dd; --bg:#f6f4f1; --ok:#1a7f4b; --bad:#b4342d; max-width: 720px; margin: 28px auto 60px; font-family: Poppins, system-ui, sans-serif; color: var(--ink); }
+  .ar h1 { font-size: 22px; margin: 0 0 4px; }
+  .ar .sub { color: var(--mu); margin: 0 0 20px; font-size: 14px; }
+  .ar .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:20px; margin-bottom:16px; }
+  .ar .doc { font-weight:600; font-size:16px; }
+  .ar table { width:100%; border-collapse:collapse; font-size:14px; }
+  .ar td { padding:9px 4px; border-top:1px solid var(--line); vertical-align:middle; }
+  .ar tr:first-child td { border-top:0; }
+  .ar .have { color:var(--ok); font-weight:600; font-size:12px; }
+  .ar .lack { color:var(--bad); font-weight:600; font-size:12px; }
+  .ar .hint { color:var(--mu); font-size:12px; }
+  .ar textarea { width:100%; border:1px solid var(--line); border-radius:10px; padding:10px 12px; font:inherit; min-height:84px; box-sizing:border-box; }
+  .ar button { background:var(--ink); color:#fff; border:0; border-radius:999px; padding:11px 22px; font:600 14px inherit; cursor:pointer; }
+  .ar button[disabled] { opacity:.45; cursor:default; }
+  .ar .ghost { background:transparent; color:var(--ink); border:1px solid var(--line); }
+  .ar .note { padding:12px 14px; border-radius:10px; background:var(--bg); font-size:14px; margin-bottom:14px; }
+  .ar .note.done { background:#e7f5ee; }
+  .ar .list a { display:block; padding:10px 0; border-top:1px solid var(--line); color:inherit; text-decoration:none; cursor:pointer; }
+  .ar .list a:first-child { border-top:0; }
+  .ar .err { color:var(--bad); font-size:13px; margin-top:10px; }
+</style>
+<div class="ar" id="ar" data-csrf="{{ csrf_token }}">
+  <h1>Ask for access</h1>
+  <p class="sub" id="ar-sub">Loading…</p>
+  <div id="ar-body"></div>
+</div>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var csrf = document.getElementById('ar').getAttribute('data-csrf');
+  var BASE = '/api/method/upande_core.access_requests.ask.';
+  var WORDS = {
+    select: ['Find it', 'Show up in lists and link searches'], read: ['Open and read', 'See the records'], write: ['Edit', 'Change existing records'],
+    create: ['Create', 'Add new records'], delete: ['Delete', 'Remove records'], submit: ['Submit', 'Submit finished records'],
+    cancel: ['Cancel', 'Cancel submitted records'], amend: ['Amend', 'Correct cancelled records'], print: ['Print', 'Print or download as PDF'],
+    email: ['Email', 'Send records by email'], report: ['Reports', 'Run reports on them'], import: ['Import', 'Load many records from a file'],
+    export: ['Export', 'Download many records'], share: ['Share', 'Share records with others'], mask: ['See hidden values', 'Some fields show as ••••; this reveals them']
+  };
+  var body = document.getElementById('ar-body'), sub = document.getElementById('ar-sub');
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function get(fn, params) {
+    var u = BASE + fn + (params ? '?' + new URLSearchParams(params) : '');
+    return fetch(u, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(handle);
+  }
+  function post(fn, params) {
+    return fetch(BASE + fn, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded', 'X-Frappe-CSRF-Token': csrf }, body: new URLSearchParams(params).toString() }).then(handle);
+  }
+  function handle(r) {
+    return r.json().catch(function () { return {}; }).then(function (j) {
+      if (!r.ok) {
+        var msg = 'Something went wrong (' + r.status + ').';
+        try { var m = JSON.parse(j._server_messages || '[]'); if (m.length) msg = JSON.parse(m[0]).message.replace(/<[^>]+>/g, ''); } catch (e) { /* keep */ }
+        throw new Error(msg);
+      }
+      return j.message;
+    });
+  }
+  function recent() {
+    get('recent_denials').then(function (rows) {
+      sub.textContent = rows.length ? 'Pick what you were blocked on.' : 'Open a page you cannot reach, then come back here, or type the doctype in the address: /access-request?doctype=Item';
+      body.innerHTML = rows.length ? '<div class="card list">' + rows.map(function (r) { return '<a data-d="' + esc(r.doctype) + '" data-p="' + esc((r.ptypes || []).join(',')) + '"><span class="doc">' + esc(r.doctype) + '</span><div class="hint">' + esc((r.ptypes || []).join(', ')) + (r.document ? ' · ' + esc(r.document) : '') + '</div></a>'; }).join('') + '</div>' : '';
+      [].forEach.call(body.querySelectorAll('a[data-d]'), function (a) { a.onclick = function () { open(a.getAttribute('data-d'), a.getAttribute('data-p').split(',').filter(Boolean)); }; });
+    }).catch(function (e) { sub.textContent = e.message; });
+  }
+  function open(doctype, wanted) {
+    get('what_i_have', { doctype: doctype }).then(function (d) {
+      var have = d.have, asked = d.open_request;
+      sub.innerHTML = 'You were stopped at <b>' + esc(doctype) + '</b>' + (q.get('document') ? ' (' + esc(q.get('document')) + ')' : '') + '. Choose what you need and tell IT why.';
+      var pre = {}; (wanted && wanted.length ? wanted : d.lacking.slice(0, 1)).forEach(function (p) { pre[p] = 1; });
+      var rows = Object.keys(have).map(function (p) {
+        var w = WORDS[p] || [p, ''];
+        return '<tr><td style="width:28px">' + (have[p] ? '' : '<input type="checkbox" class="ar-p" value="' + p + '"' + (pre[p] ? ' checked' : '') + '>') + '</td><td><b>' + esc(w[0]) + '</b><div class="hint">' + esc(w[1]) + '</div></td><td style="text-align:right">' + (have[p] ? '<span class="have">You have this</span>' : '<span class="lack">You do not have this</span>') + '</td></tr>';
+      }).join('');
+      body.innerHTML = (asked ? '<div class="note">You already asked for <b>' + esc(asked.custom_access_ptypes) + '</b> on this (request ' + esc(asked.name) + ', ' + esc(String(asked.status).toLowerCase()) + '). Anything you add below is added to it.</div>' : '')
+        + '<div class="card"><div class="doc">' + esc(doctype) + '</div><table>' + rows + '</table></div>'
+        + (d.lacking.length ? '<div class="card"><label class="hint" for="ar-why">Why do you need it? (optional)</label><textarea id="ar-why" maxlength="500" placeholder="What you are trying to do"></textarea><div style="margin-top:14px"><button id="ar-send">Ask IT for access</button> <button class="ghost" id="ar-back">Back</button></div><div class="err" id="ar-err"></div></div>' : '<div class="note done">You already have everything on this list.</div>');
+      var send = document.getElementById('ar-send');
+      if (send) send.onclick = function () {
+        var picked = [].map.call(body.querySelectorAll('.ar-p:checked'), function (c) { return c.value; });
+        var err = document.getElementById('ar-err'); err.textContent = '';
+        if (!picked.length) { err.textContent = 'Tick what you need first.'; return; }
+        send.disabled = true;
+        post('ask', { doctype: doctype, ptypes: JSON.stringify(picked), reason: document.getElementById('ar-why').value, document: q.get('document') || '', route: q.get('from') || '' }).then(function (r) {
+          sub.textContent = 'Request sent.';
+          body.innerHTML = '<div class="note done">IT has your request <b>' + esc(r.name) + '</b> for <b>' + esc(r.ptypes.join(', ')) + '</b> on ' + esc(doctype) + '. You will see a reply on the request; reload the page you were on once it is granted.</div>' + (q.get('from') ? '<a href="' + esc(q.get('from')) + '">Back to where I was</a>' : '');
+        }).catch(function (e) { err.textContent = e.message; send.disabled = false; });
+      };
+      var back = document.getElementById('ar-back'); if (back) back.onclick = function () { if (q.get('from')) location.href = q.get('from'); else history.back(); };
+    }).catch(function (e) { sub.textContent = e.message; });
+  }
+  var dt = q.get('doctype');
+  if (dt) open(dt, (q.get('ptype') || '').split(',').filter(Boolean)); else recent();
+})();
+</script>
+{% endblock %}

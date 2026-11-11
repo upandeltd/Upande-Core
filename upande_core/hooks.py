@@ -10,8 +10,15 @@ app_license = "mit"
 after_install = "upande_core.install.after_install"
 after_migrate = "upande_core.install.after_migrate"
 
+# Notice that somebody lacks access to a doctype, and offer them the request (access_requests/detect.py).
+before_request = ["upande_core.access_requests.detect.install"]
+before_job = ["upande_core.access_requests.detect.install"]
+after_request = ["upande_core.access_requests.detect.after_request"]
+
 # Shipped by the access views, which render outside the desk.
 app_include_css = "/assets/upande_core/css/standalone.css"
+# Replays an apps-screen tile's animated mark when it is hovered.
+app_include_js = ["/assets/upande_core/js/desktop_marks.js", "/assets/upande_core/js/access_request.js"]
 
 # The IT dashboard is one page now. The three portal pages that used to hold
 # System Activity, Workforce and Monitor Config are views inside it, so their

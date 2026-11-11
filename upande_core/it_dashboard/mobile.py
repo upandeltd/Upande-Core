@@ -536,9 +536,37 @@ def apps():
 # --------------------------------------------------------------------------- #
 
 
+def unique_by_android_id(rows):
+	"""One row per Android ID, the most recently seen install, carrying how many installs and which apps it stands for.
+	Rows with no Android ID cannot be matched, so each stays as it is."""
+	best, order, out = {}, [], []
+	for r in rows:
+		key = (r.get("android_id") or "").strip().lower()
+		if not key:
+			r["installs"] = 1
+			out.append(r)
+			continue
+		if key not in best:
+			order.append(key)
+			best[key] = {"row": r, "apps": []}
+		g = best[key]
+		if r["app"] not in g["apps"]:
+			g["apps"].append(r["app"])
+		g["count"] = g.get("count", 0) + 1
+		if (r.get("last_seen") or "") > (g["row"].get("last_seen") or ""):
+			g["row"] = r
+	for key in order:
+		g = best[key]
+		g["row"]["installs"] = g["count"]
+		g["row"]["apps"] = g["apps"]
+		out.append(g["row"])
+	return out
+
+
 @frappe.whitelist(methods=["GET"])
-def device_list(app=None, state=None, health=None, search=None):
-	"""Inventory: one row per device with its owner, health flags, state and notes."""
+def device_list(app=None, state=None, health=None, search=None, unique=None):
+	"""Inventory: one row per install with its owner, health flags, state and notes. `unique` folds the installs that share an
+	Android ID (the same phone running several apps, or reinstalled) into one row, the most recently seen."""
 	_require_it()
 	min_os = mon._min_os()
 	developer = is_developer()
@@ -598,6 +626,8 @@ def device_list(app=None, state=None, health=None, search=None):
 		if developer:
 			item["developer"] = {"install_id": r.install_id, "runtime": r.runtime_version, "first_seen": str(r.first_seen or ""), "launches": r.launches}
 		out.append(item)
+	if cint(unique):
+		out = unique_by_android_id(out)
 	out.sort(key=lambda d: (d["state"] != "Active", -len(d["flags"])))
 	return {"rows": out[:MAX_ROWS], "total": len(out), "summary": mon._health_counts(mon._text(app) or None), "developer": developer}
 
@@ -665,6 +695,116 @@ def problems(app=None, status="Open", kind=None, search=None):
 	return {"rows": rows, "total": len(rows), "by_status": by_status, "by_kind": by_kind, "developer": is_developer()}
 
 
+DEFAULT_HIDDEN = "payload"
+LOG_KINDS = ("crash", "error", "api", "log")
+
+
+def _log_where(app, user, kind, search, hide):
+	where, params = ["1=1"], []
+	if app:
+		where.append("e.app = %s")
+		params.append(app)
+	if user:
+		where.append("e.user = %s")
+		params.append(user)
+	if kind in LOG_KINDS:
+		where.append("e.kind = %s")
+		params.append(kind)
+	if search:
+		like = f"%{search}%"
+		where.append("(COALESCE(e.message,'') LIKE %s OR COALESCE(e.error_name,'') LIKE %s OR COALESCE(e.screen,'') LIKE %s)")
+		params += [like, like, like]
+	hidden = []
+	for term in hide:
+		like = f"%{term}%"
+		hidden.append("(COALESCE(e.message,'') LIKE %s OR COALESCE(e.error_name,'') LIKE %s OR COALESCE(e.req_error,'') LIKE %s)")
+		params += [like, like, like]
+	return where, hidden, params
+
+
+def hidden_terms(hide):
+	"""The words whose events the log leaves out. Unset means the default (`payload`); "-" means show everything (an empty value would be dropped from the URL)."""
+	if hide is None:
+		return [DEFAULT_HIDDEN]
+	terms = []
+	for t in str(hide).split(","):
+		t = " ".join(t.split())[:40].lower()
+		if t and t != "-" and t not in terms:
+			terms.append(t)
+	return terms[:8]
+
+
+@frappe.whitelist(methods=["GET"])
+def error_log(app=None, user=None, kind=None, search=None, hide=None, page=0):
+	"""The raw event log behind Crashlytics: every report an app sent, newest first, who it came from, filterable by
+	that person and by what the title or message says. Events mentioning a hidden word (default `payload`) are left
+	out and counted, so the page can say so and let the reader bring them back."""
+	_require_it()
+	app, user, kind, term = mon._text(app) or None, mon._text(user) or None, mon._text(kind) or None, mon._text(search)[:80] or None
+	terms = hidden_terms(hide)
+	page_size = 100
+	offset = max(cint(page), 0) * page_size
+	where, hidden, params = _log_where(app, user, kind, term, terms)
+	base = " AND ".join(where)
+	not_hidden = "".join(f" AND NOT {h}" for h in hidden)
+	table = f"`tab{mon.EVENT}` e"
+	developer = is_developer()
+	rows = frappe.db.sql(
+		f"SELECT e.name, e.ts, e.app, e.kind, e.level, e.user, e.user_full_name, e.message, e.error_name, e.screen, e.app_version, "  # noqa: S608
+		f"e.platform, e.os_version, e.device_brand, e.device_model, e.req_method, e.req_status, e.req_error, e.fatal, e.issue"
+		f"{', e.stack' if developer else ''} FROM {table} WHERE {base}{not_hidden} ORDER BY e.ts DESC LIMIT {page_size + 1} OFFSET {offset}",
+		params,
+		as_dict=True,
+	)
+	more = len(rows) > page_size
+	rows = rows[:page_size]
+	shown = cint(frappe.db.sql(f"SELECT COUNT(*) FROM {table} WHERE {base}{not_hidden}", params)[0][0])  # noqa: S608
+	total = cint(frappe.db.sql(f"SELECT COUNT(*) FROM {table} WHERE {base}", params[: len(params) - 3 * len(hidden)])[0][0])  # noqa: S608
+	# the people filter: who reported, with how many, ignoring the person filter itself
+	w2, h2, p2 = _log_where(app, None, kind, term, terms)
+	people = frappe.db.sql(
+		f"SELECT e.user, MAX(e.user_full_name) AS full_name, COUNT(*) AS n FROM {table} WHERE {' AND '.join(w2)}{''.join(f' AND NOT {x}' for x in h2)} "  # noqa: S608
+		"AND e.user IS NOT NULL AND e.user != '' GROUP BY e.user ORDER BY n DESC LIMIT 60",
+		p2,
+		as_dict=True,
+	)
+	out = []
+	for r in rows:
+		message = scrub(r.message) or ""
+		title = scrub(r.error_name) or (message.strip().splitlines()[0][:160] if message.strip() else "") or scrub(r.req_error) or "(no message)"
+		item = {
+			"id": r.name,
+			"ts": str(r.ts or ""),
+			"app": r.app,
+			"kind": r.kind or "error",
+			"level": r.level or "",
+			"user": r.user or "",
+			"person": r.user_full_name or r.user or "",
+			"title": title,
+			"message": message[:4000],
+			"screen": r.screen or "",
+			"version": r.app_version or "",
+			"device": " ".join(x for x in (r.device_brand, r.device_model) if x),
+			"platform": " ".join(x for x in (r.platform, r.os_version) if x),
+			"request": " ".join(str(x) for x in (r.req_method, r.req_status) if x),
+			"fatal": bool(r.fatal),
+			"issue": r.issue or "",
+		}
+		if developer:
+			item["stack"] = scrub(r.get("stack")) or ""
+		out.append(item)
+	return {
+		"rows": out,
+		"shown": shown,
+		"hidden_count": max(total - shown, 0),
+		"hidden": terms,
+		"more": more,
+		"page": cint(page),
+		"people": [{"user": p.user, "name": p.full_name or p.user, "count": cint(p.n)} for p in people],
+		"developer": developer,
+	}
+
+
 @frappe.whitelist(methods=["GET"])
 def problem_people(name):
 	"""Who hit a problem (names, not ids), most recent first."""
@@ -724,20 +864,34 @@ def _display(user_ids):
 	return {u.name: u.full_name for u in frappe.get_all("User", filters={"name": ["in", list(user_ids)]}, fields=["name", "full_name"])}
 
 
+ACCESS_TYPE = "Doctype Access"
+
+
+def _access_columns(issue):
+	"""What marks an inbox row as a request for access to a doctype; nothing for any other conversation."""
+	if issue.get("issue_type") != ACCESS_TYPE:
+		return {}
+	return {"kind": "access", "doctype": issue.get("custom_access_doctype") or "", "ptypes": issue.get("custom_access_ptypes") or "", "app": "Access"}
+
+
 def _inbox_rows(app, status):
 	"""Conversations as one list whichever doctype the site uses; awaiting-answer first, longest wait on top."""
 	now_dt = now_datetime()
 	rows = []
 	if sup.support_doctype() == sup.ISSUE:
 		apps = [app] if app else frappe.get_all(MOBILE_APP, pluck="name")
-		if not apps:
+		# Requests for access to a doctype (access_requests/) arrive as Issues too, with no app: they show under "all apps".
+		access = (not app) and bool(frappe.db.has_column("Issue", "custom_access_doctype"))
+		or_filters = [["subject", "like", f"[{a}]%"] for a in apps] + ([["issue_type", "=", ACCESS_TYPE]] if access else [])
+		if not or_filters:
 			return []
 		filters = [["status", "=", status]] if status else []
 		issues = frappe.get_all(
 			sup.ISSUE,
 			filters=filters,
-			or_filters=[["subject", "like", f"[{a}]%"] for a in apps],
-			fields=["name", "subject", "status", "raised_by", "creation", "description"],
+			or_filters=or_filters,
+			fields=["name", "subject", "status", "raised_by", "creation", "description"]
+			+ (["issue_type", "custom_access_doctype", "custom_access_ptypes"] if access else []),
 			order_by="creation desc",
 			limit_page_length=MAX_ROWS,
 		)
@@ -764,6 +918,7 @@ def _inbox_rows(app, status):
 					"last_activity": str((last or {}).get("creation") or i.creation),
 					"preview": scrub((sup.plain_text(last.get("content")) if last else (sup.parse_issue_description(i.description)[0] or ""))[:120]),
 					"messages": len(cs) + 1,
+					**_access_columns(i),
 				}
 			)
 	else:

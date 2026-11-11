@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="Upande Quality">
+  <!--
+    Upande Quality mark, the sibling of the Upande CRM, Work Management and Irrigation marks. Plays once when it loads
+    (the desk replays it when the tile is hovered): an inspector's magnifier sweeps over a leaf and finds a pest, a no-pests stamp lands on it, and the shield gets its tick. Then the Upande arrow rises out of it and grows to full size,
+    and the picture falls away. It comes to rest as the plain Upande arrow badge (the same artwork as upande-logo.png), so a
+    tile that has finished animating is indistinguishable from the static brand mark.
+
+    Pure CSS, no script: the desk draws this through <img>, where scripts never run anyway. With reduced motion set, only
+    the resting mark is shown.
+  -->
+  <style>
+    .arrow  { transform-box: view-box; transform-origin: 50px 50px;
+              animation: rise 2.4s cubic-bezier(.3,.7,.2,1) both; }
+    .pic    { animation: away 2.4s ease-in both; }
+    .mag  { animation: scan 2.4s cubic-bezier(.4,0,.3,1) both; }
+    .bug  { transform-box: fill-box; transform-origin: 50% 50%; animation: crawl 2.4s ease-in-out both; }
+    .stamp{ transform-box: fill-box; transform-origin: 50% 50%; animation: stamp 2.4s cubic-bezier(.3,1.5,.4,1) both; }
+    .ok   { stroke-dasharray: 18; stroke-dashoffset: 18; animation: tick 2.4s ease-out both; }
+    @keyframes scan  { 0%, 4% { transform: translate(26px, -22px); opacity: 0; } 12% { opacity: 1; }
+                       36% { transform: translate(-6px, 4px); } 46%, 100% { transform: translate(0, 0); opacity: 1; } }
+    @keyframes crawl { 0% { transform: translate(-6px, 4px) rotate(-12deg); } 12% { transform: translate(-2px, 1px) rotate(10deg); }
+                       24% { transform: translate(3px, -2px) rotate(-8deg); } 36%, 100% { transform: translate(0, 0) rotate(0); } }
+    @keyframes stamp { 0%, 38% { transform: scale(2.4); opacity: 0; } 48%, 100% { transform: scale(1); opacity: 1; } }
+    @keyframes tick  { 0%, 46% { stroke-dashoffset: 18; } 60%, 100% { stroke-dashoffset: 0; } }
+    @keyframes rise {
+      0%, 32%   { transform: translate(0, 12px) scale(.3); opacity: 0; }
+      38%       { opacity: 1; }
+      56%, 64%  { transform: translate(0, -15px) scale(.36); opacity: 1; }
+      92%, 100% { transform: translate(0, 0) scale(1); opacity: 1; }
+    }
+    @keyframes away {
+      0%, 54%   { opacity: 1; transform: translate(0, 0); }
+      74%, 100% { opacity: 0; transform: translate(0, 10px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .arrow, .pic *, .pic { animation: none; }
+      .pic { display: none; }
+    }
+  </style>
+
+  <circle cx="50" cy="50" r="49.3" fill="#ffffff" stroke="#1c1b19" stroke-width="0.7"/>
+
+  <g class="pic">
+    <!-- a leaf under inspection -->
+    <path d="M22 74 C22 46 44 29 76 29 C76 58 54 76 22 74 Z" fill="#f6f4f1" stroke="#45433f" stroke-width="2" stroke-linejoin="round"/>
+    <line x1="22" y1="74" x2="68" y2="36" stroke="#45433f" stroke-width="1.6" stroke-linecap="round"/>
+    <!-- the pest -->
+    <g class="bug">
+      <ellipse cx="50" cy="54" rx="4.6" ry="6.2" fill="#45433f"/>
+      <circle cx="50" cy="46.6" r="2.6" fill="#1c1b19"/>
+      <g stroke="#1c1b19" stroke-width="1.3" stroke-linecap="round">
+        <line x1="45.6" y1="51" x2="40" y2="48"/><line x1="45.2" y1="54.5" x2="39.5" y2="54.5"/><line x1="45.6" y1="58" x2="40.5" y2="61"/>
+        <line x1="54.4" y1="51" x2="60" y2="48"/><line x1="54.8" y1="54.5" x2="60.5" y2="54.5"/><line x1="54.4" y1="58" x2="59.5" y2="61"/>
+      </g>
+    </g>
+    <!-- no pests: the stamp -->
+    <g class="stamp"><circle cx="50" cy="53" r="12.5" fill="none" stroke="#1c1b19" stroke-width="2.6"/><line x1="41.2" y1="61.8" x2="58.8" y2="44.2" stroke="#1c1b19" stroke-width="2.6" stroke-linecap="round"/></g>
+    <!-- the inspector's magnifier -->
+    <g class="mag">
+      <circle cx="50" cy="53" r="17" fill="#ffffff" fill-opacity=".35" stroke="#1c1b19" stroke-width="2.6"/>
+      <path d="M38 44 A15 15 0 0 1 48 38" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" opacity=".9"/>
+      <line x1="62" y1="65" x2="76" y2="79" stroke="#45433f" stroke-width="5" stroke-linecap="round"/>
+    </g>
+    <!-- the all-clear shield -->
+    <path d="M71 18 L81 21 L81 29 C81 35 76.5 38.6 71 40.5 C65.5 38.6 61 35 61 29 L61 21 Z" fill="#f6f4f1" stroke="#45433f" stroke-width="1.8" stroke-linejoin="round"/>
+    <polyline class="ok" points="66,29 70,33 77,24.5" fill="none" stroke="#1c1b19" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- the Upande arrow, traced from upande-logo.png -->
+  <g class="arrow">
+    <polygon points="24.4,23.8 64,23.8 64,36.3 24.4,36.3" fill="#635e59"/>
+    <polygon points="59.2,23.8 64,23.8 64,36.3 59.2,36.3" fill="#5a5752"/>
+    <polygon points="64,23.8 76.5,23.8 76.5,76.2 64,76.2" fill="#45433f"/>
+    <polygon points="24.4,64.6 50.5,38.5 64,36.3 64,47.9 35.8,76.2 24.4,76.2" fill="#45433f"/>
+    <polygon points="50,39.2 64,36.3 64,47.9 60.4,51.4 60.4,40.6" fill="#1c1b19"/>
+  </g>
+</svg>

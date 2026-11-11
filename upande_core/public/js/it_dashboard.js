@@ -435,9 +435,9 @@
   /* ---------- Devices ---------- */
   var FLAG_TEXT = { low_battery: 'Low battery', low_storage: 'Low storage', offline: 'Offline', outdated_os: 'Old system', outdated_app: 'Old app' };
   function devices(r) {
-    var state = r.q.get('state') || '', health = r.q.get('health') || '', q = r.q.get('search') || '';
-    return call('device_list', { app: appName, state: state, health: health, search: q }).then(function (d) {
-      function nav(over) { var o = { state: state, health: health, search: q }; Object.keys(over).forEach(function (k) { o[k] = over[k]; }); go('devices?' + qs(o)); }
+    var state = r.q.get('state') || '', health = r.q.get('health') || '', q = r.q.get('search') || '', uniq = r.q.get('unique') || '';
+    return call('device_list', { app: appName, state: state, health: health, search: q, unique: uniq }).then(function (d) {
+      function nav(over) { var o = { state: state, health: health, search: q, unique: uniq }; Object.keys(over).forEach(function (k) { o[k] = over[k]; }); go('devices?' + qs(o)); }
       var s = d.summary || {};
       var rows = [];
       d.rows.forEach(function (x) {
@@ -445,7 +445,7 @@
         rows.push(h('tr', { class: 'is-link', tabindex: 0, onclick: open, onkeydown: function (e) { if (e.key === 'Enter') open(); } }, [
           h('td', {}, who(x.owner_name || 'No owner', x.owner)),
           h('td', {}, x.device + (x.os_version ? ' · ' + x.platform + ' ' + x.os_version : '')),
-          h('td', {}, [x.app, ' ', h('span', { class: 'ph-muted' }, x.app_version)]),
+          h('td', {}, x.apps && x.apps.length > 1 ? [x.apps.join(', '), ' ', h('span', { class: 'ph-muted' }, x.installs + ' installs')] : [x.app, ' ', h('span', { class: 'ph-muted' }, x.app_version)]),
           h('td', {}, mono(x.serial_number)),
           h('td', {}, mono(x.mac_address)),
           h('td', {}, mono(x.android_id)),
@@ -464,6 +464,7 @@
           pills([['', 'All', d.total]].concat(Object.keys(FLAG_TEXT).filter(function (k) { return s[k] != null; }).map(function (k) { return [k, FLAG_TEXT[k], s[k]]; })), health, function (v) { nav({ health: v }); }),
           appSelect(),
           select([['', 'Any status'], ['Active', 'Active'], ['Lost', 'Lost'], ['Retired', 'Retired']], state, function (v) { nav({ state: v }); }, 'Device status'),
+          select([['', 'All installs'], ['1', 'Unique devices (Android ID)']], uniq, function (v) { nav({ unique: v }); }, 'Unique devices'),
           search('Search owner, model, serial, MAC or IP', q, function (v) { nav({ search: v }); })
         ]),
         card('', '', rows.length ? table(cols, rows) : empty('No devices match'), true)
@@ -851,7 +852,11 @@
   }
 
   var KIND_BADGE = { crash: 'bad', error: 'warn', api: 'signal', log: '' };
+  function viewTabs(view, extra) {
+    return pills([['issues', 'Issues'], ['log', 'Error log']], view, function (v) { go('crashlytics?' + qs(Object.assign({ view: v === 'log' ? 'log' : '' }, extra || {}))); });
+  }
   function crashlytics(r) {
+    if (r.q.get('view') === 'log') return errorLog(r);
     var status = r.q.get('status') || 'Open', kind = r.q.get('kind') || '', q = r.q.get('search') || '';
     return call('problems', { app: appName, status: status, kind: kind, search: q }).then(function (d) {
       function nav(over) { var o = { status: status, kind: kind, search: q }; Object.keys(over).forEach(function (k) { o[k] = over[k]; }); go('crashlytics?' + qs(o)); }
@@ -876,6 +881,7 @@
       mount([
         head('IT dashboard · Crashlytics', 'Crashlytics', 'Crashes, errors and failed requests reported by your apps. Click an issue for the details and to resolve it.'),
         filters([
+          viewTabs('issues'),
           pills([['Open', 'Open', (d.by_status || {}).Open || 0], ['Resolved', 'Resolved', (d.by_status || {}).Resolved || 0], ['Ignored', 'Ignored', (d.by_status || {}).Ignored || 0]], status, function (v) { nav({ status: v }); }),
           select([['', 'All kinds'], ['crash', 'Crashes (' + (bk.crash || 0) + ')'], ['error', 'Errors (' + (bk.error || 0) + ')'], ['api', 'API failures (' + (bk.api || 0) + ')'], ['log', 'Logs (' + (bk.log || 0) + ')']], kind, function (v) { nav({ kind: v }); }, 'Kind'),
           appSelect(),
@@ -890,6 +896,64 @@
         card('', '', rows.length ? table(cols, rows) : empty('No issues', 'Nothing matches these filters.'), true)
       ]);
     });
+  }
+  /* The raw event log: who it came from, what it said; words like "payload" are hidden until you bring them back. */
+  function errorLog(r) {
+    var user = r.q.get('user') || '', kind = r.q.get('kind') || '', q = r.q.get('search') || '', page = parseInt(r.q.get('page') || '0', 10) || 0;
+    var hideParam = r.q.has('hide') ? r.q.get('hide') : null;
+    return call('error_log', { app: appName, user: user, kind: kind, search: q, hide: hideParam, page: page }).then(function (d) {
+      var hidden = d.hidden || [];
+      function nav(over) {
+        var o = { view: 'log', user: user, kind: kind, search: q, hide: hidden.join(',') || '-', page: 0 };
+        Object.keys(over).forEach(function (k) { o[k] = over[k]; });
+        go('crashlytics?' + qs(o));
+      }
+      var rows = d.rows.map(function (x) {
+        function open() { openLogEvent(x); }
+        return h('tr', { class: 'is-link', tabindex: 0, onclick: open, onkeydown: function (e) { if (e.key === 'Enter') open(); } }, [
+          h('td', {}, ago(x.ts)),
+          h('td', {}, who(x.person || 'Not signed in', x.user)),
+          h('td', {}, badge(x.kind, KIND_BADGE[x.kind])),
+          h('td', { class: 'itd-issue' }, [h('div', { class: 'ph-strong itd-clamp' }, x.title), x.screen ? h('div', { class: 'ph-mono ph-muted ph-truncate' }, x.screen) : null]),
+          h('td', {}, [x.app, ' ', h('span', { class: 'ph-muted' }, x.version)]),
+          h('td', {}, x.device || '—')
+        ]);
+      });
+      var cols = [{ label: 'When' }, { label: 'User' }, { label: 'Kind' }, { label: 'Error' }, { label: 'App' }, { label: 'Device' }];
+      var chips = hidden.map(function (t) {
+        return h('button', { class: 'ph-btn ph-btn--ghost', type: 'button', title: 'Show these again', onclick: function () { nav({ hide: hidden.filter(function (x) { return x !== t; }).join(',') || '-' }); } }, 'Hiding “' + t + '” ✕');
+      });
+      var addBox = h('input', { class: 'ph-control', type: 'text', placeholder: 'Hide titles containing…', style: 'max-width:220px', onkeydown: function (e) {
+        if (e.key === 'Enter' && addBox.value.trim()) nav({ hide: hidden.concat([addBox.value.trim()]).join(',') });
+      } });
+      var peopleOptions = [['', 'Everyone']].concat(d.people.map(function (p) { return [p.user, p.name + ' (' + p.count + ')']; }));
+      if (user && !d.people.some(function (p) { return p.user === user; })) peopleOptions.push([user, user]);
+      var pager = [];
+      if (page > 0) pager.push(h('button', { class: 'ph-btn ph-btn--ghost', type: 'button', onclick: function () { nav({ page: page - 1 }); } }, 'Newer'));
+      if (d.more) pager.push(h('button', { class: 'ph-btn ph-btn--ghost', type: 'button', onclick: function () { nav({ page: page + 1 }); } }, 'Older'));
+      mount([
+        head('IT dashboard · Crashlytics', 'Error log', 'Every report the apps sent, newest first. Filter by the person it came from or by what the title says. Click an entry for the full message.'),
+        filters([
+          viewTabs('log'),
+          select(peopleOptions, user, function (v) { nav({ user: v }); }, 'Created by'),
+          select([['', 'All kinds'], ['crash', 'Crashes'], ['error', 'Errors'], ['api', 'API failures'], ['log', 'Logs']], kind, function (v) { nav({ kind: v }); }, 'Kind'),
+          appSelect(),
+          search('Search the title, message or screen', q, function (v) { nav({ search: v }); })
+        ]),
+        h('div', { class: 'ph-flex ph-flex--wrap', style: 'align-items:center;gap:var(--sp-2);margin:var(--sp-3) 0' }, chips.concat([addBox, d.hidden_count ? h('span', { class: 'ph-muted' }, plural(d.hidden_count, 'entry', 'entries') + ' hidden') : null])),
+        card('', plural(d.shown, 'entry', 'entries'), rows.length ? table(cols, rows) : empty('No entries', 'Nothing matches these filters.'), true),
+        pager.length ? h('div', { class: 'ph-flex', style: 'gap:var(--sp-2);margin-top:var(--sp-3)' }, pager) : null
+      ]);
+    });
+  }
+  function openLogEvent(x) {
+    var body = h('div', { class: 'ph-stack ph-stack--lg' }, [
+      h('div', { class: 'ph-flex ph-flex--wrap' }, [badge(x.kind, KIND_BADGE[x.kind]), badge(x.app, 'outline'), x.fatal ? badge('Fatal', 'bad') : null]),
+      kvList([['When', x.ts], ['User', x.person ? x.person + (x.user && x.user !== x.person ? ' (' + x.user + ')' : '') : 'Not signed in'], ['Screen', x.screen], ['App version', x.version], ['Device', x.device], ['System', x.platform], ['Request', x.request]]),
+      h('div', {}, [h('div', { class: 'ph-label', style: 'margin-bottom:var(--sp-2)' }, 'Message'), h('pre', { class: 'itd-code' }, x.message || x.title)])
+    ]);
+    if (x.stack) body.appendChild(h('details', { class: 'itd-dev', open: true }, [h('summary', {}, 'Developer details'), h('pre', { class: 'itd-code' }, x.stack)]));
+    drawer(x.title, ago(x.ts), body);
   }
   function openIssue(p) {
     var who_ = h('div', { class: 'ph-muted' }, 'Loading…');
@@ -938,20 +1002,22 @@
     var open = r.parts[1] || '';
     return call('inbox', { app: appName, status: status }).then(function (d) {
       var rows = onlyWaiting ? d.rows.filter(function (c) { return c.waiting; }) : d.rows;
-      if (!open && rows.length && window.innerWidth > 1000) open = rows[0].id;
+      var accessIds = {}; rows.forEach(function (c) { if (c.kind === 'access') accessIds[c.id] = 1; });
+      if (!open && rows.length && window.innerWidth > 1000) { var firstChat = rows.filter(function (c) { return c.kind !== 'access'; })[0]; open = firstChat ? firstChat.id : ''; }
       function nav(over) { var o = { status: status, waiting: onlyWaiting ? '1' : '' }; Object.keys(over).forEach(function (k) { o[k] = over[k]; }); go('support?' + qs(o)); }
       var list = h('section', { class: 'ph-card itd-inbox' }, [
         h('div', { class: 'itd-pane__head' }, [h('div', { class: 'ph-card__title' }, 'Conversations'), h('div', { class: 'ph-card__meta' }, plural(rows.length, 'conversation'))]),
         h('div', { class: 'itd-pane__body' }, rows.length ? rows.map(function (c) {
           var done = c.status === 'Resolved' || c.status === 'Closed';
           var url = 'support/' + encodeURIComponent(c.id) + '?' + qs({ status: status, waiting: onlyWaiting ? '1' : '' });
-          return h('button', { type: 'button', class: 'itd-thread' + (c.id === open ? ' is-on' : ''), onclick: function () { go(url); } }, [
+          var isAccess = c.kind === 'access';
+          return h('button', { type: 'button', class: 'itd-thread' + (c.id === open ? ' is-on' : ''), onclick: function () { if (isAccess) openAccessRequest(c.id); else go(url); } }, [
             h('div', { class: 'ph-avatar' }, initials(c.person || c.user)),
             h('div', { class: 'itd-thread__main' }, [
               h('div', { class: 'ph-flex ph-flex--between' }, [h('b', {}, c.person || c.user), h('span', { class: 'ph-muted', style: 'font-size:11px;white-space:nowrap' }, ago(c.last_activity))]),
               h('div', { class: 'itd-thread__email' }, c.email && c.email !== c.person ? c.email : c.app),
               h('p', {}, c.subject + (c.preview ? ' — ' + c.preview : '')),
-              h('div', { class: 'ph-flex ph-flex--wrap' }, [c.waiting ? badge('Waiting ' + (c.waiting_hours < 1 ? 'under an hour' : plural(c.waiting_hours, 'hour')), c.waiting_hours >= 24 ? 'bad' : 'warn') : badge(done ? c.status : 'Answered', done ? 'good' : ''), badge(c.app, 'outline')])
+              h('div', { class: 'ph-flex ph-flex--wrap' }, [isAccess ? badge('Access request', 'signal') : null, c.waiting ? badge('Waiting ' + (c.waiting_hours < 1 ? 'under an hour' : plural(c.waiting_hours, 'hour')), c.waiting_hours >= 24 ? 'bad' : 'warn') : badge(done ? c.status : 'Answered', done ? 'good' : ''), badge(c.app, 'outline')])
             ])
           ]);
         }) : empty('No conversations', onlyWaiting ? 'Nobody is waiting for an answer.' : 'Reports and chats from the apps appear here.'))
@@ -966,12 +1032,62 @@
         ]),
         h('div', { class: 'itd-msgr' }, [list, chatSlot, infoSlot])
       ]);
-      if (open) openConversation(open, chatSlot, infoSlot);
+      if (open && accessIds[open]) openAccessRequest(open);
+      else if (open) openConversation(open, chatSlot, infoSlot);
       timer = setInterval(function () {
         var t = document.querySelector('.itd-compose textarea');
         if (!document.hidden && !(t && t.value)) render();
       }, 30000);
     });
+  }
+  /* A request for access to a doctype: who, what, what they have now, and the one step that gives it. */
+  var PTYPE_WORDS = { select: 'Find', read: 'Read', write: 'Edit', create: 'Create', delete: 'Delete', submit: 'Submit', cancel: 'Cancel', amend: 'Amend', print: 'Print', email: 'Email', report: 'Reports', import: 'Import', export: 'Export', share: 'Share', mask: 'See hidden values' };
+  function openAccessRequest(id) {
+    return call('access.detail', { name: id }).then(function (d) {
+      var close;
+      var chosen = {}; d.asked.forEach(function (p) { chosen[p] = 1; });
+      var checks = d.applicable.map(function (p) {
+        var have = d.have[p];
+        var box = h('input', { type: 'checkbox', disabled: have || d.closed || !!d.refusal, onchange: function () { if (box.checked) chosen[p] = 1; else delete chosen[p]; } });
+        box.checked = have || !!chosen[p];
+        return h('label', { class: 'ph-flex', style: 'gap:8px;align-items:center;padding:4px 0' }, [box, h('span', {}, PTYPE_WORDS[p] || p), have ? badge('has it', 'good') : (d.asked.indexOf(p) >= 0 ? badge('asked for', 'warn') : null)]);
+      });
+      // The narrow role made for this doctype is the default: an existing role also gives whatever else it carries.
+      var mode = 'new';
+      var roleSel = select(d.suggested.map(function (r) { return [r.role, r.role + ' · gives ' + r.gives.join(', ') + (r.all ? '' : ' (not all)')]; }), d.suggested.length ? d.suggested[0].role : '', function () { mode = 'role'; modeRole.checked = true; }, 'Role');
+      var modeRole = h('input', { type: 'radio', name: 'arm', disabled: !d.suggested.length, onchange: function () { mode = 'role'; } }), modeNew = h('input', { type: 'radio', name: 'arm', onchange: function () { mode = 'new'; } });
+      modeRole.checked = mode === 'role'; modeNew.checked = mode === 'new';
+      function give() {
+        var picked = Object.keys(chosen).filter(function (p) { return !d.have[p]; });
+        if (!picked.length) { toast('Tick what to give.', 'bad'); return; }
+        var args = { name: d.id, ptypes: JSON.stringify(picked) };
+        if (mode === 'role') args.role = roleSel.value;
+        btnGive.disabled = true;
+        call('access.grant', args, true).then(function () { toast('Access given to ' + d.person, 'good'); close(); render(); }).catch(function (e) { btnGive.disabled = false; fail(e); });
+      }
+      var note = h('input', { class: 'ph-control', type: 'text', placeholder: 'Why not (optional)' });
+      var btnGive = h('button', { class: 'ph-btn ph-btn--primary', type: 'button', onclick: give }, 'Give access');
+      var btnNo = h('button', { class: 'ph-btn ph-btn--ghost', type: 'button', onclick: function () {
+        call('access.decline', { name: d.id, note: note.value }, true).then(function () { toast('Request closed', 'good'); close(); render(); }).catch(fail);
+      } }, 'Decline');
+      var body = h('div', { class: 'ph-stack ph-stack--lg' }, [
+        h('div', { class: 'ph-flex ph-flex--wrap' }, [badge('Access request', 'signal'), badge(d.status, d.closed ? 'good' : 'warn'), badge(d.doctype, 'outline')]),
+        kvList([['Person', d.person + (d.user !== d.person ? ' (' + d.user + ')' : '')], ['Doctype', d.doctype], ['Document', d.document], ['Where it happened', d.route], ['Asked for', d.asked.join(', ')], ['Still missing', d.lacking.join(', ') || 'nothing'], ['Their role profiles', d.profiles_now.join(', ')]]),
+        d.reason ? h('div', {}, [h('div', { class: 'ph-label', style: 'margin-bottom:var(--sp-2)' }, 'What they said'), h('div', { class: 'ph-muted', style: 'white-space:pre-wrap' }, d.reason)]) : null,
+        d.refusal ? h('div', { class: 'ph-note ph-note--warn' }, d.refusal) : null,
+        d.closed ? h('div', { class: 'ph-note' }, 'This request is ' + d.status.toLowerCase() + '.') : null,
+        h('div', {}, [h('div', { class: 'ph-label', style: 'margin-bottom:var(--sp-2)' }, d.closed ? 'Access on ' + d.doctype : 'What to give'), h('div', {}, checks)]),
+        d.closed || d.refusal ? null : h('div', { class: 'ph-stack' }, [
+          h('div', { class: 'ph-label' }, 'Give it through'),
+          h('label', { class: 'ph-flex', style: 'gap:8px;align-items:center' }, [modeRole, h('span', {}, 'An existing role'), roleSel]),
+          d.suggested.length ? h('div', { class: 'ph-muted', style: 'font-size:12px;margin:-4px 0 0 24px' }, 'An existing role also gives everything else it carries, on other doctypes too.') : null,
+          h('label', { class: 'ph-flex', style: 'gap:8px;align-items:center' }, [modeNew, h('span', {}, 'A role made for this doctype: ' + d.new_role + (d.new_role_exists ? ' (exists; it is extended)' : ''))]),
+          h('div', { class: 'ph-muted', style: 'font-size:12px' }, 'The person gets it through a role profile of the same name, like any other access. Write, create and delete also give read.')
+        ]),
+        d.closed ? null : h('div', { class: 'ph-flex ph-flex--wrap' }, d.refusal ? [note, btnNo] : [btnGive, note, btnNo])
+      ]);
+      close = drawer('Access to ' + d.doctype, d.person + ' · ' + d.asked.join(', '), body);
+    }).catch(fail);
   }
   function openConversation(id, chatSlot, infoSlot) {
     return call('conversation', { id: id }).then(function (c) {
