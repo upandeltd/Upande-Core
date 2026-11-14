@@ -16,7 +16,7 @@ import re
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, cint, get_datetime, now_datetime
+from frappe.utils import add_days, cint, get_datetime, getdate, now_datetime
 
 from upande_core.it_dashboard import usermgmt
 
@@ -563,19 +563,21 @@ def unique_by_android_id(rows):
 	return out
 
 
-@frappe.whitelist(methods=["GET"])
-def device_list(app=None, state=None, health=None, search=None, unique=None):
-	"""Inventory: one row per install with its owner, health flags, state and notes. `unique` folds the installs that share an
-	Android ID (the same phone running several apps, or reinstalled) into one row, the most recently seen."""
-	_require_it()
+def _link_fields():
+	"""The device link fields on a Mobile App Install, once the site has been migrated to have them."""
+	return [f for f in ("device_group", "custodian") if frappe.db.has_column(INSTALL, f)]
+
+
+def _device_items(app, state, search, developer):
+	"""Every install as a row, with its owner, health flags and the people who used it. State and search are applied here;
+	health is left to the caller, because the health counts must not shrink when a health filter is on."""
 	min_os = mon._min_os()
-	developer = is_developer()
 	rows = dev.install_rows(app=mon._text(app) or None, include_dormant=True)
 	meta = {
 		r.install_id: r
 		for r in frappe.get_all(
 			INSTALL,
-			fields=["install_id", "device_state", "it_notes", "battery_level", "storage_free_bytes", "storage_total_bytes", "connectivity", "os_major", "snapshot_at", "network_type", "platform"],
+			fields=["install_id", "device_state", "it_notes", "battery_level", "storage_free_bytes", "storage_total_bytes", "connectivity", "os_major", "snapshot_at", "network_type", "platform", "device_key"] + _link_fields(),
 			limit_page_length=0,
 		)
 	}
@@ -588,11 +590,16 @@ def device_list(app=None, state=None, health=None, search=None, unique=None):
 		device_state = m.device_state or "Active"
 		if state and device_state != state:
 			continue
-		health_row = {**m, "status": r.status}
-		flags = mon.health_flags(health_row, min_os)
-		if health and health not in flags:
-			continue
-		text = " ".join(str(x or "") for x in (r.user, r.full_name, r.device_brand, r.device_model, r.device_name, r.serial_number, r.mac_address, r.android_id, r.local_ip))
+		flags = mon.health_flags({**m, "status": r.status}, min_os)
+		users = [
+			{"user": u.get("user"), "name": u.get("full_name") or u.get("user"), "first_seen": str(u.get("first_seen") or ""), "last_seen": str(u.get("last_seen") or ""), "version": u.get("app_version") or "", "logins": cint(u.get("logins")), "app": r.app}
+			for u in (r.users or [])
+		]
+		text = " ".join(
+			str(x or "")
+			for x in [r.user, r.full_name, r.device_brand, r.device_model, r.device_name, r.serial_number, r.mac_address, r.android_id, r.local_ip]
+			+ [v for u in users for v in (u["user"], u["name"])]
+		)
 		if term and term not in text.lower():
 			continue
 		item = {
@@ -618,14 +625,26 @@ def device_list(app=None, state=None, health=None, search=None, unique=None):
 			"local_ip": r.local_ip or "",
 			"build_number": r.build_number or "",
 			"ip_seen": r.ip_address or "",
-			"users": [
-				{"user": u.get("user"), "name": u.get("full_name") or u.get("user"), "first_seen": str(u.get("first_seen") or ""), "last_seen": str(u.get("last_seen") or ""), "version": u.get("app_version") or "", "logins": cint(u.get("logins"))}
-				for u in (r.users or [])
-			],
+			"users": users,
+			"device_key": m.device_key or "",
+			"device_group": m.get("device_group") or "",
+			"custodian_direct": m.get("custodian") or "",
+			# Expo Go (the development container) reports the runtime "exposdk:<n>" and gets its own Android ID
+			"test_build": (r.runtime_version or "").lower().startswith("exposdk"),
 		}
 		if developer:
 			item["developer"] = {"install_id": r.install_id, "runtime": r.runtime_version, "first_seen": str(r.first_seen or ""), "launches": r.launches}
 		out.append(item)
+	return out
+
+
+@frappe.whitelist(methods=["GET"])
+def device_list(app=None, state=None, health=None, search=None, unique=None):
+	"""Inventory: one row per install with its owner, health flags, state and notes. `unique` folds the installs that share an
+	Android ID (the same phone running several apps, or reinstalled) into one row, the most recently seen."""
+	_require_it()
+	developer = is_developer()
+	out = [r for r in _device_items(app, state, search, developer) if not health or health in r["flags"]]
 	if cint(unique):
 		out = unique_by_android_id(out)
 	out.sort(key=lambda d: (d["state"] != "Active", -len(d["flags"])))
@@ -656,7 +675,18 @@ def set_device(id, state=None, notes=None):
 # --------------------------------------------------------------------------- #
 
 
-def _problem_rows(app, status, kind=None, search=None):
+def _day_bounds(since, until):
+	"""A from/to pair of dates (YYYY-MM-DD) as whole-day datetime strings; anything unreadable is ignored."""
+	out = []
+	for value, tail in ((since, "00:00:00"), (until, "23:59:59")):
+		try:
+			out.append(f"{getdate(mon._text(value))} {tail}" if mon._text(value) else None)
+		except Exception:
+			out.append(None)
+	return out
+
+
+def _problem_rows(app, status, kind=None, search=None, since=None, until=None):
 	filters = {}
 	if app:
 		filters["app"] = app
@@ -664,6 +694,11 @@ def _problem_rows(app, status, kind=None, search=None):
 		filters["status"] = status
 	if kind in mon.KINDS:
 		filters["kind"] = kind
+	start, end = _day_bounds(since, until)
+	if start:
+		filters["last_seen"] = [">=", start]
+	if end:
+		filters["last_seen"] = ["<=", end] if not start else ["between", [start, end]]
 	or_filters = [["title", "like", f"%{search}%"], ["culprit", "like", f"%{search}%"]] if search else None
 	rows = frappe.get_all(
 		mon.ISSUE,
@@ -678,20 +713,23 @@ def _problem_rows(app, status, kind=None, search=None):
 
 
 @frappe.whitelist(methods=["GET"])
-def problems(app=None, status="Open", kind=None, search=None):
+def problems(app=None, status="Open", kind=None, search=None, since=None, until=None):
 	"""The Crashlytics list: the issues the apps reported, most people affected first. `counts` gives the number of
 	issues per status and per kind (for the chosen status) so the page can label its filters."""
 	_require_it()
 	app = mon._text(app) or None
 	status = status if status in PROBLEM_STATUSES else None
 	term = mon._text(search)[:80] or None
-	rows = _problem_rows(app, status, mon._text(kind) or None, term)
-	by_status = {}
-	for r in _problem_rows(app, None, mon._text(kind) or None, term):
-		by_status[r["status"]] = by_status.get(r["status"], 0) + 1
-	by_kind = {}
-	for r in _problem_rows(app, status, None, term):
-		by_kind[r["kind"]] = by_kind.get(r["kind"], 0) + 1
+	kind = mon._text(kind) if mon._text(kind) in mon.KINDS else None
+	# one query; the status and kind counts and the list are worked out from it
+	everything = _problem_rows(app, None, None, term, since, until)
+	rows = [r for r in everything if (not status or r["status"] == status) and (not kind or r["kind"] == kind)]
+	by_status, by_kind = {}, {}
+	for r in everything:
+		if not kind or r["kind"] == kind:
+			by_status[r["status"]] = by_status.get(r["status"], 0) + 1
+		if not status or r["status"] == status:
+			by_kind[r["kind"]] = by_kind.get(r["kind"], 0) + 1
 	return {"rows": rows, "total": len(rows), "by_status": by_status, "by_kind": by_kind, "developer": is_developer()}
 
 
@@ -699,8 +737,15 @@ DEFAULT_HIDDEN = "payload"
 LOG_KINDS = ("crash", "error", "api", "log")
 
 
-def _log_where(app, user, kind, search, hide):
+def _log_where(app, user, kind, search, hide, since=None, until=None):
 	where, params = ["1=1"], []
+	start, end = _day_bounds(since, until)
+	if start:
+		where.append("e.ts >= %s")
+		params.append(start)
+	if end:
+		where.append("e.ts <= %s")
+		params.append(end)
 	if app:
 		where.append("e.app = %s")
 		params.append(app)
@@ -735,7 +780,7 @@ def hidden_terms(hide):
 
 
 @frappe.whitelist(methods=["GET"])
-def error_log(app=None, user=None, kind=None, search=None, hide=None, page=0):
+def error_log(app=None, user=None, kind=None, search=None, hide=None, page=0, since=None, until=None):
 	"""The raw event log behind Crashlytics: every report an app sent, newest first, who it came from, filterable by
 	that person and by what the title or message says. Events mentioning a hidden word (default `payload`) are left
 	out and counted, so the page can say so and let the reader bring them back."""
@@ -744,7 +789,7 @@ def error_log(app=None, user=None, kind=None, search=None, hide=None, page=0):
 	terms = hidden_terms(hide)
 	page_size = 100
 	offset = max(cint(page), 0) * page_size
-	where, hidden, params = _log_where(app, user, kind, term, terms)
+	where, hidden, params = _log_where(app, user, kind, term, terms, since, until)
 	base = " AND ".join(where)
 	not_hidden = "".join(f" AND NOT {h}" for h in hidden)
 	table = f"`tab{mon.EVENT}` e"
@@ -761,7 +806,7 @@ def error_log(app=None, user=None, kind=None, search=None, hide=None, page=0):
 	shown = cint(frappe.db.sql(f"SELECT COUNT(*) FROM {table} WHERE {base}{not_hidden}", params)[0][0])  # noqa: S608
 	total = cint(frappe.db.sql(f"SELECT COUNT(*) FROM {table} WHERE {base}", params[: len(params) - 3 * len(hidden)])[0][0])  # noqa: S608
 	# the people filter: who reported, with how many, ignoring the person filter itself
-	w2, h2, p2 = _log_where(app, None, kind, term, terms)
+	w2, h2, p2 = _log_where(app, None, kind, term, terms, since, until)
 	people = frappe.db.sql(
 		f"SELECT e.user, MAX(e.user_full_name) AS full_name, COUNT(*) AS n FROM {table} WHERE {' AND '.join(w2)}{''.join(f' AND NOT {x}' for x in h2)} "  # noqa: S608
 		"AND e.user IS NOT NULL AND e.user != '' GROUP BY e.user ORDER BY n DESC LIMIT 60",

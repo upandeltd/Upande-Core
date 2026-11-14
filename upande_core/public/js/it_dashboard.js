@@ -16,6 +16,7 @@
   var SVG = 'http://www.w3.org/2000/svg';
 
   /* ---------- helpers ---------- */
+  function flat(list) { return list == null ? [] : [].concat.apply([], [].concat(list).map(function (x) { return Array.isArray(x) ? flat(x) : [x]; })); }  // children may be nested lists
   function h(tag, attrs, kids) {
     var el = document.createElement(tag);
     Object.keys(attrs || {}).forEach(function (k) {
@@ -26,7 +27,7 @@
       else if (k === 'value') el.value = v;
       else el.setAttribute(k, v === true ? '' : v);
     });
-    [].concat(kids == null ? [] : kids).forEach(function (c) {
+    flat(kids).forEach(function (c) {
       if (c == null || c === false) return;
       el.appendChild(typeof c === 'object' ? c : document.createTextNode(String(c)));
     });
@@ -40,9 +41,24 @@
     return s;
   }
   function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); }
-  function mount(nodes) { clear(view); [].concat(nodes).forEach(function (n) { if (n) view.appendChild(n); }); }
+  var afterMount = [];  // run once the screen is on the page (search boxes taking back focus)
+  function mount(nodes, force) {
+    nodes = [].concat(nodes).filter(Boolean);
+    // While a search is reloading the screen, a loading placeholder would tear the search box out from under the typist
+    // (and lose the keys typed meanwhile): the old rows stay until the new screen, which has the box again, is ready.
+    if (!force && searchHand && Date.now() - searchHand.at < 10000 && searchHand.screen === (location.hash || '#/overview').slice(2).split('?')[0].split('/')[0]) {
+      var keeps = nodes.some(function (n) { return n.querySelector && [].some.call(n.querySelectorAll('input[type=search]'), function (i) { return i.placeholder === searchHand.ph; }); });
+      if (!keeps && view.querySelector('input[type=search]')) return;
+    }
+    clear(view);
+    nodes.forEach(function (n) { view.appendChild(n); });
+    var todo = afterMount; afterMount = [];
+    todo.forEach(function (fn) { fn(); });
+  }
   function qs(o) { return Object.keys(o || {}).filter(function (k) { return o[k] !== '' && o[k] != null; }).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(o[k]); }).join('&'); }
+  var renderSeq = 0;  // bumped by every render: an answer for an older screen is dropped, never painted over a newer one
   function call(fn, params, post) {
+    var mine = renderSeq;
     // Where each call lives: the mobile screens and the people, role and permission screens are in this app, and the app
     // store's list and download stay with the upande_mobile app that owns the APKs.
     var parts = fn.indexOf('.') < 0 ? ['mobile', fn] : fn.split('.');
@@ -58,6 +74,7 @@
     } else if (q) url += '?' + q;
     return fetch(url, opts).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!post && mine !== renderSeq) return new Promise(function () { /* superseded by a newer screen */ });
         if (!r.ok) {
           var msg = 'Something went wrong (' + r.status + ').';
           try { var m = JSON.parse(j._server_messages || '[]'); if (m.length) msg = JSON.parse(m[0]).message || msg; } catch (e) { /* keep */ }
@@ -117,12 +134,52 @@
     return s;
   }
   function appSelect() {
-    return select([['', 'All apps']].concat(appList.map(function (a) { return [a, a]; })), appName, function (v) { appName = v; render(); }, 'App');
+    return select([['', 'All apps']].concat(appList.map(function (a) { return [a, a]; })), appName, function (v) { appName = v; go((location.hash || '#/overview').slice(2)); }, 'App');
   }
-  function search(placeholder, value, onEnter) {
-    var i = h('input', { type: 'search', placeholder: placeholder, value: value || '', onkeydown: function (e) { if (e.key === 'Enter') onEnter(i.value); } });
+  /* A search box that searches as you type: a short pause after the last key, or Enter at once. The screen is rebuilt for the
+     new results, so the box hands its focus, caret and any keys typed meanwhile to its successor. `narrow(term)` (optional)
+     filters the rows already on the page on every key, before the server answers. */
+  var searchHand = null;  // {ph, v, at, screen}: what the box being replaced had typed in it
+  function searchState(ph, v) { return { ph: ph, v: v, at: Date.now(), screen: (location.hash || '#/overview').slice(2).split('?')[0].split('/')[0] }; }
+  var searchOwn = false;  // set while a search itself moves the page, so go() keeps the hand-over
+  function searchBox(placeholder, value, onSearch, narrow) {
+    var timer = null, last = String(value || '').trim();
+    var i = h('input', { type: 'search', placeholder: placeholder, 'aria-label': placeholder, value: value || '', autocomplete: 'off' });
+    function fire() {
+      clearTimeout(timer);
+      var v = i.value.trim();
+      if (v === last) return;
+      last = v;
+      searchHand = searchState(placeholder, i.value);
+      searchOwn = true;
+      try { onSearch(v); } finally { searchOwn = false; }
+    }
+    i.addEventListener('input', function () {
+      searchHand = searchState(placeholder, i.value);
+      if (narrow) narrow(i.value.trim().toLowerCase());
+      clearTimeout(timer);
+      timer = setTimeout(fire, 350);
+    });
+    i.addEventListener('keydown', function (e) { if (e.key === 'Enter') fire(); });
+    i.addEventListener('search', function () { if (!i.value) fire(); });  // the browser's clear (x) button
+    if (searchHand && searchHand.ph === placeholder) {
+      var typed = searchHand.v;
+      searchHand = null;
+      i.value = typed;
+      var restored = false;
+      var restore = function () {
+        if (restored || !i.isConnected) return;
+        restored = true;
+        i.focus();
+        try { i.setSelectionRange(typed.length, typed.length); } catch (e) { /* type=search keeps its caret */ }
+        if (typed.trim() !== last) { searchHand = searchState(placeholder, typed); timer = setTimeout(fire, 0); }
+      };
+      afterMount.push(restore);  // mount() runs it the moment the box is on the page, so no key lands in between
+      setTimeout(restore, 0);
+    }
     return h('label', { class: 'ph-search' }, [icon(['M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16z', 'M21 21l-4.35-4.35']), i]);
   }
+  function search(placeholder, value, onSearch) { return searchBox(placeholder, value, onSearch); }
   function filters(nodes) { return h('div', { class: 'ph-filters' }, nodes); }
   function card(title, meta, body, flush) {
     return h('section', { class: 'ph-card' + (flush ? ' ph-card--flush' : '') }, [
@@ -190,9 +247,20 @@
   var TITLES = { overview: 'Overview', updates: 'Updates', devices: 'Devices', crashlytics: 'Crashlytics', support: 'Support', apps: 'Apps', users: 'User management', roles: 'Role management', permissions: 'Doctype permissions', userperms: 'User permissions' };
   function route() {
     var p = (location.hash || '#/overview').slice(2).split('?');
-    return { parts: p[0].split('/').map(decodeURIComponent), q: new URLSearchParams(p[1] || '') };
+    var q = new URLSearchParams(p[1] || '');
+    appName = q.get('app') || '';  // the app filter lives in the address, like every other filter
+    return { parts: p[0].split('/').map(decodeURIComponent), q: q };
   }
-  function go(path) { location.hash = '#/' + path; }
+  // The app filter rides along on every move, so a reload or a shared link keeps it.
+  function go(path) {
+    if (!searchOwn) searchHand = null;
+    var p = String(path).split('?');
+    var q = new URLSearchParams(p[1] || '');
+    q.delete('app');
+    if (appName) q.set('app', appName);
+    var next = '#/' + p[0] + (q.toString() ? '?' + q.toString() : '');
+    if (location.hash === next) render(); else location.hash = next;
+  }
   function setCount(key, n) {
     var el = document.getElementById('count-' + key);
     if (!el) return;
@@ -208,6 +276,7 @@
     }).catch(function () { /* counts are a convenience */ });
   }
   function render() {
+    renderSeq++;
     clearInterval(timer);
     if (openDrawer) openDrawer();
     var r = route();
@@ -222,7 +291,7 @@
     if (pg) pg.classList.toggle('ph-page--wide', key === 'support');
     root.classList.remove('is-drawer-open');
     var screens = { overview: overview, updates: updates, devices: devices, crashlytics: crashlytics, support: support, apps: apps, users: users, roles: roleScreen, permissions: permScreen, userperms: userPermScreen };
-    Promise.resolve(screens[key](r)).then(markUpdated).catch(function (e) { mount(errState(e)); });
+    Promise.resolve(screens[key](r)).then(markUpdated).catch(function (e) { mount(errState(e), true); });
     if (key !== 'overview') refreshCounts();
   }
 
@@ -259,8 +328,8 @@
     return el;
   }
   function legend(items) {
-    return h('div', { class: 'ph-flex ph-flex--wrap', style: 'font-size:12px;color:var(--ink-mute);margin-top:var(--sp-3)' }, items.map(function (i) {
-      return h('span', { class: 'ph-flex', style: 'gap:6px' }, [h('i', { style: 'width:10px;height:10px;border-radius:3px;background:' + i[1] + ';display:inline-block' }), i[0]]);
+    return h('div', { class: 'ph-legend ph-mt' }, items.map(function (i) {
+      return h('span', {}, [h('i', { class: 'is-bar', style: 'background:' + i[1] }), i[0]]);
     }));
   }
   function hbars(rows) {
@@ -332,6 +401,12 @@
     return svg;
   }
   function overview() {
+    mount([
+      head('IT dashboard', 'Overview', 'Loading…'),
+      filters([appSelect()]),
+      h('section', { class: 'ph-kpis is-loading' }, ['People', 'Devices', 'Adoption', 'Open tickets'].map(function (l) { return h('div', { class: 'ph-kpi' }, [h('div', { class: 'ph-kpi__label' }, l), h('div', { class: 'ph-kpi__value' }, '0')]); })),
+      card('', '', h('div', { class: 'ph-sk', style: 'height:160px' }))
+    ]);
     return call('today', { app: appName }).then(function (d) {
       var s = d.stats;
       var by = {};
@@ -352,6 +427,14 @@
           stat('Adoption', s.adoption == null ? '—' : s.adoption + '%', 'on the current version', { onClick: function () { go('updates'); } }),
           stat('Open tickets', s.tickets_open, s.tickets_waiting + ' waiting for an answer', { onClick: function () { go('support'); }, dark: s.tickets_waiting > 0 })
         ]),
+        d.cards.length ? card('Needs attention', plural(d.cards.length, 'item'), h('div', { class: 'ph-list' }, d.cards.map(function (c) {
+          var t = cardCopy(c);
+          return h('div', { class: 'ph-list__row is-link', style: 'grid-template-columns:minmax(0,1fr) auto auto', tabindex: '0', onclick: function () { go(c.route); }, onkeydown: function (e) { if (e.key === 'Enter') go(c.route); } }, [
+            h('div', { style: 'min-width:0' }, [h('div', { class: 'ph-list__name' }, t[0]), h('div', { class: 'ph-list__meta' }, t[1])]),
+            badge(String(c.count), c.severity === 'high' ? 'bad' : c.severity === 'medium' ? 'warn' : ''),
+            h('span', { class: 'ph-link' }, t[2])
+          ]);
+        }))) : card('Needs attention', '', empty('All clear', 'Nothing needs attention right now.')),
         h('div', { class: 'ph-row ph-row--2-1' }, [
           card('App versions', 'people by update state', mixRows.length ? [stackedRows(mixRows, mixParts), legend(mixParts.map(function (p) { return [p.label, p.color]; }))] : empty('No people yet')),
           card('Android versions', s.android_versions.length ? plural(s.android_versions.reduce(function (a, x) { return a + x.count; }, 0), 'device') : '', s.android_versions.length ? [h('div', {}, hbars(s.android_versions.map(function (v) { return { label: v.label, value: v.count, cls: v.old ? 'low' : '' }; }))), s.android_versions.some(function (v) { return v.old; }) ? h('div', { class: 'ph-muted', style: 'font-size:12px;margin-top:var(--sp-3)' }, 'Red = older than the supported minimum.') : null] : empty('No Android devices yet'))
@@ -373,8 +456,15 @@
     var bucket = r.q.get('bucket') || '';
     var q = r.q.get('search') || '';
     var selected = {};
+    mount([
+      head('IT dashboard · Updates', 'Who needs to update', 'People on an older version than the current release.'),
+      kpis([1, 2, 3, 4].map(function () { return { label: ' ', value: '0' }; })),
+      card('', '', h('div', { class: 'ph-sk', style: 'height:240px' }), true)
+    ]);
+    [].forEach.call(document.querySelectorAll('.ph-kpis'), function (k) { k.classList.add('is-loading'); });
     return call('updates', { app: appName, bucket: bucket, search: q }).then(function (d) {
       var chased = (d.counts.forgot || 0) + (d.counts.cant_update || 0);
+      var everyoneCount = Object.keys(d.counts).reduce(function (a, k) { return a + d.counts[k]; }, 0);
       var actionable = bucket === '' || bucket === 'forgot' || bucket === 'cant_update';
       var sendBtn = h('button', { class: 'ph-btn ph-btn--primary', type: 'button', disabled: true, onclick: function () { send(Object.keys(selected).map(function (k) { return selected[k]; })); } }, 'Remind selected');
       function sync() {
@@ -417,15 +507,21 @@
       });
       var cols = [{ label: '' }, { label: 'Person' }, { label: 'App' }, { label: 'Has → needs' }, { label: 'State' }, { label: 'Release age', num: true }, { label: 'Last seen' }, { label: 'Reminders' }, { label: '' }];
       mount([
-        head('IT dashboard · Updates', 'Who needs to update', 'Everyone running an older version than the current release. Reminders go out as push notifications.'),
+        head('IT dashboard · Updates', 'Who needs to update', 'People on an older version than the current release. Reminders go out as push notifications.'),
         filters([
-          pills(BUCKETS.map(function (b) { return [b[0], b[1], b[0] === '' ? chased : (d.counts[b[0]] || 0)]; }), bucket, function (v) { go('updates' + (v ? '?bucket=' + v : '')); }),
+          pills(BUCKETS.map(function (b) { return [b[0], b[1], b[0] === '' ? chased : (d.counts[b[0]] || 0)]; }), bucket, function (v) { go('updates?' + qs({ bucket: v, search: q })); }),
           appSelect(),
           search('Search a name, email or team', q, function (v) { go('updates?' + qs({ bucket: bucket, search: v })); }),
           h('span', { class: 'ph-filters__spacer' }),
           actionable ? sendBtn : null
         ]),
-        card('', '', rows.length ? table(cols, rows) : empty('Nobody here', 'Everyone in this group is sorted.'), true)
+        kpis([
+          stat('People', everyoneCount, 'across ' + (appName || 'all apps')),
+          stat('Pending update', d.counts.forgot || 0, 'need to reopen the app', { active: bucket === 'forgot', onClick: function () { go('updates?bucket=forgot'); } }),
+          stat('Pending install', d.counts.cant_update || 0, 'need the new install', { active: bucket === 'cant_update', onClick: function () { go('updates?bucket=cant_update'); } }),
+          stat('Up to date', everyoneCount ? Math.round(100 * (d.counts.current || 0) / everyoneCount) + '%' : '—', plural(d.counts.current || 0, 'person', 'people'), { active: bucket === 'current', onClick: function () { go('updates?bucket=current'); } })
+        ]),
+        card('People', d.total > rows.length ? 'showing ' + rows.length + ' of ' + d.total : plural(d.total, 'person', 'people'), rows.length ? table(cols, rows) : (q ? empty('No match', 'Nobody matches this search.') : empty('Nobody here', 'Everyone in this group is sorted.')), true)
       ]);
       var first = document.querySelector('.ph-table th');
       if (first && actionable && rows.length) first.appendChild(all);
@@ -434,42 +530,233 @@
 
   /* ---------- Devices ---------- */
   var FLAG_TEXT = { low_battery: 'Low battery', low_storage: 'Low storage', offline: 'Offline', outdated_os: 'Old system', outdated_app: 'Old app' };
+  /* Devices, as a drill-down: model -> device (its Android ID) -> the people who used it. Which rows are open is kept in
+     devOpen, so a search or refresh does not fold them. */
+  var devOpen = {};
+  function devIsOpen(key, dflt) { return Object.prototype.hasOwnProperty.call(devOpen, key) ? devOpen[key] : dflt; }
+  function devChevron(on, label) {
+    return h('span', { class: 'itd-chev' + (on ? ' is-open' : ''), 'aria-hidden': 'true' }, icon(['M9 6l6 6-6 6']));
+  }
+  function devHealth(x) {
+    var main = x.state !== 'Active' ? badge(x.state, x.state === 'Lost' ? 'bad' : '') : (x.flags.length ? x.flags.map(function (f) { return badge(FLAG_TEXT[f] || f, f === 'outdated_app' ? 'warn' : 'bad'); }) : badge('Healthy', 'good'));
+    return x.test ? [main, ' ', badge('Test build', 'outline')] : main;
+  }
+  /* what a device is linked to: its asset and its custodian */
+  function devLinked(x) {
+    var bits = [];
+    if (x.asset) bits.push(badge(x.asset.asset_name, 'outline'));
+    if (x.custodian) bits.push(h('span', { class: x.custodian.via === 'asset' ? 'ph-muted' : '' }, x.custodian.name));
+    return bits.length ? h('div', { class: 'ph-flex ph-flex--wrap', style: 'gap:var(--sp-2)' }, bits) : h('span', { class: 'ph-muted' }, '—');
+  }
+  var DEV_TABS = [['', 'Devices'], ['assets', 'Linked to assets'], ['custodians', 'Linked to custodians']];
+  function devTabs(view) { return pills(DEV_TABS, view, function (v) { go('devices' + (v ? '?view=' + v : '')); }); }
+  var devLinksReady = true;
+  function instIds(x) { return JSON.stringify(x.install_ids || [x.id]); }
+  function devToggleRow(key, on, cells, label, redraw) {
+    function flip() { devOpen[key] = !on; redraw(); }
+    return h('tr', { class: 'is-link' + (on ? ' is-open' : ''), tabindex: 0, role: 'button', 'aria-expanded': on ? 'true' : 'false', 'aria-label': label, onclick: flip, onkeydown: function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } } }, cells);
+  }
+  function devicePeople(x) {
+    return h('div', { class: 'itd-sub' }, x.people.length ? table(
+      [{ label: 'Person' }, { label: 'Apps' }, { label: 'First used' }, { label: 'Last used' }, { label: 'Sign-ins', num: true }],
+      x.people.map(function (u) {
+        return h('tr', {}, [
+          h('td', {}, who(u.name, u.name !== u.user ? u.user : '')),
+          h('td', {}, u.uses.map(function (a) { return a.app + (a.version ? ' ' + a.version : ''); }).join(', ')),
+          h('td', {}, dateOnly(u.first_seen)),
+          h('td', {}, ago(u.last_seen)),
+          h('td', { class: 'is-num' }, u.logins ? String(u.logins) : '—')
+        ]);
+      })
+    ) : h('div', { class: 'ph-muted', style: 'padding:var(--sp-3) var(--sp-5)' }, 'No sign-ins recorded for this device.'));
+  }
+  function modelDevices(m, deep, redraw) {
+    var rows = [];
+    m.devices.forEach(function (x) {
+      var key = 'd:' + x.key, on = devIsOpen(key, deep);
+      rows.push(devToggleRow(key, on, [
+        h('td', {}, h('div', { class: 'ph-flex', style: 'gap:var(--sp-2)' }, [devChevron(on), x.has_id || x.group ? [mono(x.device_id), x.merged ? [' ', badge('Merged', 'outline')] : null] : h('span', {}, [h('span', { class: 'ph-muted' }, 'Not reported '), h('span', { class: 'ph-mono ph-muted' }, x.id.slice(0, 8))])])),
+        h('td', {}, [x.serial_number ? mono(x.serial_number) : null, x.serial_number && x.mac_address ? h('br') : null, x.mac_address ? mono(x.mac_address) : null, !x.serial_number && !x.mac_address ? h('span', { class: 'ph-muted' }, '—') : null]),
+        h('td', {}, x.platform ? x.platform + ' ' + x.os_version : '—'),
+        h('td', {}, [x.apps.join(', '), x.installs > 1 ? h('span', { class: 'ph-muted' }, ' · ' + plural(x.installs, 'install')) : null]),
+        h('td', { class: 'is-num' }, String(x.people.length)),
+        h('td', {}, devLinked(x)),
+        h('td', {}, devHealth(x)),
+        h('td', { class: 'is-num' }, x.battery != null ? x.battery + '%' : '—'),
+        h('td', { class: 'is-num' }, x.storage_free_gb != null ? x.storage_free_gb + ' GB' : '—'),
+        h('td', {}, ago(x.last_seen)),
+        h('td', {}, h('button', { class: 'ph-btn ph-btn--ghost ph-btn--sm', type: 'button', onclick: function (e) { e.stopPropagation(); openDevice(x); } }, 'Details'))
+      ], 'Device ' + (x.android_id || x.id) + ', ' + plural(x.people.length, 'person', 'people'), redraw));
+      if (on) rows.push(h('tr', { class: 'itd-subrow' }, h('td', { colspan: 11 }, devicePeople(x))));
+    });
+    return h('div', { class: 'itd-sub' }, table(
+      [{ label: 'Device ID' }, { label: 'Serial · MAC' }, { label: 'System' }, { label: 'Apps' }, { label: 'People', num: true }, { label: 'Linked to' }, { label: 'Health' }, { label: 'Battery', num: true }, { label: 'Free', num: true }, { label: 'Last seen' }, { label: '' }],
+      rows
+    ));
+  }
   function devices(r) {
-    var state = r.q.get('state') || '', health = r.q.get('health') || '', q = r.q.get('search') || '', uniq = r.q.get('unique') || '';
-    return call('device_list', { app: appName, state: state, health: health, search: q, unique: uniq }).then(function (d) {
-      function nav(over) { var o = { state: state, health: health, search: q, unique: uniq }; Object.keys(over).forEach(function (k) { o[k] = over[k]; }); go('devices?' + qs(o)); }
-      var s = d.summary || {};
-      var rows = [];
-      d.rows.forEach(function (x) {
-        function open() { openDevice(x); }
-        rows.push(h('tr', { class: 'is-link', tabindex: 0, onclick: open, onkeydown: function (e) { if (e.key === 'Enter') open(); } }, [
-          h('td', {}, who(x.owner_name || 'No owner', x.owner)),
-          h('td', {}, x.device + (x.os_version ? ' · ' + x.platform + ' ' + x.os_version : '')),
-          h('td', {}, x.apps && x.apps.length > 1 ? [x.apps.join(', '), ' ', h('span', { class: 'ph-muted' }, x.installs + ' installs')] : [x.app, ' ', h('span', { class: 'ph-muted' }, x.app_version)]),
-          h('td', {}, mono(x.serial_number)),
-          h('td', {}, mono(x.mac_address)),
-          h('td', {}, mono(x.android_id)),
-          h('td', {}, mono(x.local_ip || x.ip_seen)),
-          h('td', {}, mono(x.build_number)),
-          h('td', {}, x.state !== 'Active' ? badge(x.state, x.state === 'Lost' ? 'bad' : '') : (x.flags.length ? x.flags.map(function (f) { return badge(FLAG_TEXT[f] || f, f === 'outdated_app' ? 'warn' : 'bad'); }) : badge('Healthy', 'good'))),
-          h('td', { class: 'is-num' }, x.battery != null ? x.battery + '%' : '—'),
-          h('td', { class: 'is-num' }, x.storage_free_gb != null ? x.storage_free_gb + ' GB' : '—'),
-          h('td', {}, ago(x.last_seen))
-        ]));
-      });
-      var cols = [{ label: 'Owner' }, { label: 'Device' }, { label: 'App' }, { label: 'Serial number' }, { label: 'MAC address' }, { label: 'Device ID' }, { label: 'IP address' }, { label: 'Build' }, { label: 'Health' }, { label: 'Battery', num: true }, { label: 'Free', num: true }, { label: 'Last seen' }];
+    var view_ = r.q.get('view') || '';
+    if (view_ === 'assets' || view_ === 'custodians') return deviceLinks(view_, r);
+    var state = r.q.get('state') || '', health = r.q.get('health') || '', q = r.q.get('search') || '', tests = r.q.get('tests') || '';
+    mount([head('IT dashboard · Devices', 'Devices', 'Loading…'), card('', '', h('div', { class: 'ph-sk', style: 'height:240px' }), true)]);
+    return call('devicelink.device_tree', { app: appName, state: state, health: health, search: q, tests: tests }).then(function (d) {
+      devLinksReady = d.links_ready !== false;
+      function nav(over) { var o = { state: state, health: health, search: q, tests: tests }; Object.keys(over).forEach(function (k) { o[k] = over[k]; }); go('devices?' + qs(o)); }
+      var t = d.totals, hc = d.health || {};
+      var few = t.devices <= 20;  // a short result opens all the way down, so a search for a person shows them
+      var host = h('div');
+      function redraw() {
+        clear(host);
+        if (!d.models.length) { host.appendChild(empty('No devices match', 'Try a different filter or search.')); return; }
+        var rows = [];
+        d.models.forEach(function (m) {
+          var on = devIsOpen('m:' + m.name, !!q && (few || d.models.length <= 3));
+          rows.push(devToggleRow('m:' + m.name, on, [
+            h('td', {}, h('div', { class: 'ph-flex', style: 'gap:var(--sp-2)' }, [devChevron(on), h('span', { class: 'ph-strong' }, m.name)])),
+            h('td', { class: 'is-num' }, String(m.devices.length)),
+            h('td', { class: 'is-num' }, String(m.people)),
+            h('td', { class: 'is-num' }, String(m.installs)),
+            h('td', { class: 'is-num' }, m.issues ? String(m.issues) : '—'),
+            h('td', {}, ago(m.last_seen))
+          ], m.name + ', ' + plural(m.devices.length, 'device'), redraw));
+          if (on) rows.push(h('tr', { class: 'itd-subrow' }, h('td', { colspan: 6 }, modelDevices(m, !!q && few, redraw))));
+        });
+        host.appendChild(table([{ label: 'Device' }, { label: 'Devices', num: true }, { label: 'People', num: true }, { label: 'Installs', num: true }, { label: 'Need attention', num: true }, { label: 'Last seen' }], rows));
+      }
+      redraw();
       mount([
-        head('IT dashboard · Devices', 'Phones and tablets', plural(d.total, 'device') + '. Click a row to see everything about it, mark it lost or retired, and add a note. Android hides the serial number and MAC address from most apps, so those can be empty; the Device ID is the Android ID, which every phone gives.'),
+        head('IT dashboard · Devices', 'Devices', 'Open a device to see its IDs, and a device ID to see who used it.' + (t.no_id ? ' ' + plural(t.no_id, 'device') + ' report no device ID (Android hides it from some apps), so each counts as its own device.' : '') + (tests ? '' : ' Test builds (Expo Go) are left out.')),
         filters([
-          pills([['', 'All', d.total]].concat(Object.keys(FLAG_TEXT).filter(function (k) { return s[k] != null; }).map(function (k) { return [k, FLAG_TEXT[k], s[k]]; })), health, function (v) { nav({ health: v }); }),
+          devTabs(''),
+          select([['', 'Any state'], ['Active', 'Active'], ['Lost', 'Lost'], ['Retired', 'Retired']], state, function (v) { nav({ state: v }); }, 'State'),
           appSelect(),
-          select([['', 'Any status'], ['Active', 'Active'], ['Lost', 'Lost'], ['Retired', 'Retired']], state, function (v) { nav({ state: v }); }, 'Device status'),
-          select([['', 'All installs'], ['1', 'Unique devices (Android ID)']], uniq, function (v) { nav({ unique: v }); }, 'Unique devices'),
-          search('Search owner, model, serial, MAC or IP', q, function (v) { nav({ search: v }); })
+          select([['', 'Any health']].concat(Object.keys(FLAG_TEXT).map(function (k) { return [k, FLAG_TEXT[k]]; })), health, function (v) { nav({ health: v }); }, 'Health'),
+          search('Search device, ID or person', q, function (v) { nav({ search: v }); }),
+          h('span', { class: 'ph-filters__spacer' }),
+          (function () {
+            var box = h('input', { type: 'checkbox', onchange: function () { nav({ tests: box.checked ? '1' : '' }); } });
+            box.checked = !!tests;
+            return h('label', { class: 'ph-switch', title: 'Expo Go, the development container, gets its own device ID, so one phone can look like two.' }, [box, h('i'), h('span', {}, 'Include test builds')]);
+          })(),
+          h('button', { class: 'ph-btn ph-btn--ghost', type: 'button', onclick: function () {
+            var allOn = d.models.some(function (m) { return devIsOpen('m:' + m.name, false); });
+            d.models.forEach(function (m) { devOpen['m:' + m.name] = !allOn; });
+            redraw();
+          } }, 'Open or close all')
         ]),
-        card('', '', rows.length ? table(cols, rows) : empty('No devices match'), true)
+        kpis([{ label: 'Unique devices', value: t.devices, dark: true }, { label: 'Models', value: t.models }, { label: 'People', value: t.people }, { label: 'Installs', value: t.installs }, { label: 'Linked to assets', value: t.with_asset, onClick: function () { go('devices?view=assets'); } }, { label: 'With a custodian', value: t.with_custodian, onClick: function () { go('devices?view=custodians'); } }].concat(Object.keys(FLAG_TEXT).filter(function (k) { return hc[k] != null; }).map(function (k) {
+          return { label: FLAG_TEXT[k], value: hc[k], onClick: function () { nav({ health: health === k ? '' : k }); }, active: health === k };
+        }))),
+        card('', '', host, true)
       ]);
     });
+  }
+  /* Devices linked to assets / to custodians: the same devices, listed by what they belong to. */
+  function devUnlink(x, what, fn) {
+    ask('Unlink ' + what, x.device + ' will no longer be linked to this ' + what + '.', 'Unlink', true, function () {
+      call('devicelink.' + fn, { install_ids: instIds(x) }, true).then(function () { toast('Unlinked', 'good'); render(); }).catch(fail);
+    });
+  }
+  function deviceLinks(kind, r) {
+    var q = r.q.get('search') || '', isAsset = kind === 'assets';
+    mount([head('IT dashboard · Devices', 'Devices', 'Loading…'), card('', '', h('div', { class: 'ph-sk', style: 'height:240px' }), true)]);
+    return call('devicelink.device_links', { kind: isAsset ? 'asset' : 'custodian', app: appName, search: q }).then(function (d) {
+      devLinksReady = d.links_ready !== false;
+      var people = {};
+      d.rows.forEach(function (x) { if (x.custodian) people[x.custodian.id] = 1; });
+      var direct = d.rows.filter(function (x) { return x.custodian && x.custodian.via === 'direct'; }).length;
+      var body;
+      if (!devLinksReady) body = empty('Not set up yet', 'This site needs a migrate before devices can be linked.');
+      else if (!d.rows.length) body = empty(q ? 'No match' : (isAsset ? 'No device is linked to an asset yet' : 'No device has a custodian yet'), q ? 'Try another search.' : 'Open a device on the Devices tab and use Details to link it.');
+      else {
+        var cols = isAsset
+          ? [{ label: 'Asset' }, { label: 'Device' }, { label: 'Device ID' }, { label: 'Custodian' }, { label: 'People who used it' }, { label: 'Last seen' }, { label: '' }]
+          : [{ label: 'Custodian' }, { label: 'Device' }, { label: 'Device ID' }, { label: 'Linked through' }, { label: 'People who used it' }, { label: 'Last seen' }, { label: '' }];
+        body = table(cols, d.rows.map(function (x) {
+          function open() { openDevice(x); }
+          var first = isAsset ? who(x.asset.asset_name, x.asset.name + (x.asset.location ? ' · ' + x.asset.location : '')) : who(x.custodian.name, x.custodian.id);
+          var unlink = isAsset ? h('button', { class: 'ph-btn ph-btn--ghost ph-btn--sm', type: 'button', onclick: function (e) { e.stopPropagation(); devUnlink(x, 'asset', 'unlink_asset'); } }, 'Unlink')
+            : (x.custodian.via === 'direct' ? h('button', { class: 'ph-btn ph-btn--ghost ph-btn--sm', type: 'button', onclick: function (e) { e.stopPropagation(); devUnlink(x, 'custodian', 'unlink_custodian'); } }, 'Unlink') : null);
+          return h('tr', { class: 'is-link', tabindex: 0, onclick: open, onkeydown: function (e) { if (e.key === 'Enter') open(); } }, [
+            h('td', {}, first),
+            h('td', {}, [x.device, x.test ? [' ', badge('Test build', 'outline')] : null]),
+            h('td', {}, mono(x.device_id)),
+            isAsset ? h('td', {}, x.custodian ? who(x.custodian.name, x.custodian.via === 'asset' ? 'from the asset' : 'set on the device') : dash('')) : h('td', {}, x.custodian.via === 'asset' ? ['Asset ', h('b', {}, x.asset ? x.asset.asset_name : '')] : 'The device itself'),
+            h('td', {}, x.people.slice(0, 3).map(function (p) { return p.name; }).join(', ') + (x.people.length > 3 ? ' +' + (x.people.length - 3) : '')),
+            h('td', {}, ago(x.last_seen)),
+            h('td', {}, unlink)
+          ]);
+        }));
+      }
+      mount([
+        head('IT dashboard · Devices', 'Devices', isAsset ? 'Devices that are an asset, with the asset’s custodian.' : 'Who has which device: set on the device, or taken from its asset.'),
+        filters([
+          devTabs(kind),
+          appSelect(),
+          search(isAsset ? 'Search asset, device or person' : 'Search custodian, device or person', q, function (v) { go('devices?' + qs({ view: kind, search: v })); }),
+          h('span', { class: 'ph-filters__spacer' })
+        ]),
+        kpis(isAsset
+          ? [{ label: 'Devices linked to assets', value: d.total, dark: true }, { label: 'With a custodian', value: d.rows.filter(function (x) { return x.custodian; }).length }]
+          : [{ label: 'Devices with a custodian', value: d.total, dark: true }, { label: 'Custodians', value: Object.keys(people).length }, { label: 'Set on the device', value: direct }, { label: 'Through an asset', value: d.total - direct }]),
+        card('', '', body, true)
+      ]);
+    });
+  }
+  /* In a device's details: what it is linked to, and "this is the same device as…". */
+  function devLinkBlocks(x, close) {
+    if (!devLinksReady) return null;
+    function done(msg) { return function () { toast(msg, 'good'); close(); render(); }; }
+    function picker(placeholder, fetchFn, label, action) {
+      var picked = null;
+      var ta = typeahead(placeholder, fetchFn, function (it) { picked = it; });
+      var btn = h('button', { class: 'ph-btn', type: 'button', onclick: function () {
+        if (!picked) { toast('Pick one from the list.', 'bad'); return; }
+        action(picked);
+      } }, label);
+      return h('div', { class: 'ph-flex', style: 'gap:var(--sp-3);align-items:flex-start' }, [h('div', { class: 'ph-grow' }, ta), btn]);
+    }
+    var asset = h('div', {}, [h('div', { class: 'ph-label', style: 'margin-bottom:var(--sp-2)' }, 'Asset'),
+      x.asset ? h('div', { class: 'ph-stack' }, [
+        kvList([['Asset', x.asset.asset_name + ' (' + x.asset.name + ')'], ['Location', x.asset.location]].filter(function (p) { return p[1]; })),
+        h('div', {}, h('button', { class: 'ph-btn ph-btn--ghost', type: 'button', onclick: function () { devUnlink(x, 'asset', 'unlink_asset'); } }, 'Unlink asset'))
+      ]) : picker('Find an asset by name', function (term) {
+        return call('devicelink.find_assets', { search: term }).then(function (res) { return res.rows.map(function (a) { return { value: a.name, label: (a.asset_name || a.name) + ' · ' + a.name, sub: a.device_id ? 'Already linked to a device' : (a.location || '') }; }); });
+      }, 'Link asset', function (it) {
+        call('devicelink.link_asset', { install_ids: instIds(x), asset: it.value }, true).then(done('Linked to ' + it.label)).catch(fail);
+      }),
+      x.asset ? null : h('div', { class: 'ph-field__hint' }, 'The asset keeps this device’s ID, so the link follows it.')]);
+    var cust = h('div', {}, [h('div', { class: 'ph-label', style: 'margin-bottom:var(--sp-2)' }, 'Custodian'),
+      x.custodian && x.custodian.via === 'direct' ? h('div', { class: 'ph-stack' }, [
+        kvList([['Custodian', x.custodian.name + ' (' + x.custodian.id + ')']]),
+        h('div', {}, h('button', { class: 'ph-btn ph-btn--ghost', type: 'button', onclick: function () { devUnlink(x, 'custodian', 'unlink_custodian'); } }, 'Unlink custodian'))
+      ]) : h('div', {}, [
+        x.custodian ? h('div', { class: 'ph-muted', style: 'margin-bottom:var(--sp-2)' }, x.custodian.name + ' through the asset. Pick someone to set it on the device itself.') : null,
+        picker('Find an employee', function (term) {
+          return call('devicelink.find_custodians', { search: term }).then(function (res) { return res.rows.map(function (e) { return { value: e.name, label: e.employee_name + ' · ' + e.name, sub: e.department || '' }; }); });
+        }, 'Link custodian', function (it) {
+          call('devicelink.link_custodian', { install_ids: instIds(x), employee: it.value }, true).then(done('Custodian set')).catch(fail);
+        })
+      ])]);
+    var same = h('div', {}, [h('div', { class: 'ph-label', style: 'margin-bottom:var(--sp-2)' }, 'Same device as another'),
+      picker('Find the other device by model, ID or person', function (term) {
+        return call('devicelink.find_devices', { search: term, exclude: instIds(x) }).then(function (res) { return res.rows.map(function (o) { return { value: o.install_ids, label: o.label, sub: o.sub, ids: o.install_ids }; }); });
+      }, 'Merge', function (it) {
+        ask('Merge devices', 'Treat ' + x.device + ' and ' + it.label + ' as one device? Their people, ID and links come together. A phone often shows twice after a reset or when an app is signed with another key.', 'Merge', false, function () {
+          call('devicelink.merge_devices', { install_ids: instIds(x), into_ids: JSON.stringify(it.ids) }, true).then(done('Merged')).catch(fail);
+        });
+      }),
+      x.merged ? h('div', { style: 'margin-top:var(--sp-4)' }, [h('div', { class: 'ph-muted', style: 'font-size:12px;margin-bottom:var(--sp-2)' }, 'IDs behind this device'), h('div', {}, x.ids.map(function (g) {
+        return h('div', { class: 'ph-flex ph-flex--between', style: 'padding:var(--sp-2) 0;border-bottom:1px solid var(--hairline)' }, [
+          h('div', {}, [mono(g.id || 'not reported'), h('div', { class: 'ph-muted', style: 'font-size:12px' }, g.apps.join(', ') + (g.test ? ' · test build' : ''))]),
+          h('button', { class: 'ph-btn ph-btn--ghost ph-btn--sm', type: 'button', onclick: function () {
+            ask('Split off', 'Take ' + (g.id || 'this ID') + ' out of this device? It counts as a separate device again.', 'Split off', true, function () {
+              call('devicelink.split_device', { install_ids: JSON.stringify(g.install_ids) }, true).then(done('Split off')).catch(fail);
+            });
+          } }, 'Split off')
+        ]);
+      }))]) : null]);
+    return h('div', { class: 'ph-stack ph-stack--lg' }, [asset, cust, same]);
   }
   function openDevice(x) {
     var notes = h('textarea', { class: 'ph-control', rows: 3, style: 'height:auto;padding:10px 14px', placeholder: 'Who has it, where it is, what was done' }, x.notes);
@@ -479,17 +766,18 @@
       h('div', { class: 'ph-flex ph-flex--wrap' }, x.flags.length ? x.flags.map(function (f) { return badge(FLAG_TEXT[f] || f, f === 'outdated_app' ? 'warn' : 'bad'); }) : [badge('Healthy', 'good')]),
       kvList([['Owner', x.owner_name], ['Email', x.owner], ['App', x.app + ' ' + x.app_version], ['System', x.platform + ' ' + x.os_version], ['Battery', x.battery != null ? x.battery + '%' : ''], ['Free storage', x.storage_free_gb != null ? x.storage_free_gb + ' GB' : ''], ['Network', x.network], ['Last seen', ago(x.last_seen)]]),
       h('div', {}, [h('div', { class: 'ph-label', style: 'margin-bottom:var(--sp-2)' }, 'Identifiers'), kvList([['Device ID', x.android_id || 'not reported'], ['Serial number', x.serial_number || 'not reported'], ['MAC address', x.mac_address || 'not reported']].concat(x.local_ip && x.ip_seen && x.local_ip !== x.ip_seen ? [['IP on its network', x.local_ip], ['IP the server sees', x.ip_seen]] : [['IP address', x.local_ip || x.ip_seen || 'not reported']]).concat([ ['Build number', x.build_number || 'not reported']]), true)]),
-      h('div', {}, [h('div', { class: 'ph-label', style: 'margin-bottom:var(--sp-2)' }, 'People who used this device'), x.users && x.users.length ? h('div', {}, x.users.map(function (u) {
+      devLinkBlocks(x, function () { close(); }),
+      h('div', {}, [h('div', { class: 'ph-label', style: 'margin-bottom:var(--sp-2)' }, 'People who used this device'), x.people && x.people.length ? h('div', {}, x.people.map(function (u) {
         return h('div', { style: 'padding:var(--sp-3) 0;border-bottom:1px solid var(--hairline)' }, [
-          h('div', { class: 'ph-flex ph-flex--between' }, [h('div', { class: 'ph-strong' }, u.name), h('span', { class: 'ph-muted', style: 'font-size:12px' }, u.version ? 'version ' + u.version : '')]),
+          h('div', { class: 'ph-flex ph-flex--between' }, [h('div', { class: 'ph-strong' }, u.name), h('span', { class: 'ph-muted', style: 'font-size:12px' }, u.uses.map(function (a) { return a.app + (a.version ? ' ' + a.version : ''); }).join(', '))]),
           u.name !== u.user ? h('div', { class: 'ph-muted', style: 'font-size:12px' }, u.user) : null,
           h('div', { class: 'ph-muted', style: 'font-size:12px' }, 'First used ' + dateOnly(u.first_seen) + ' · last used ' + ago(u.last_seen) + (u.logins ? ' · ' + plural(u.logins, 'sign-in') : ''))
         ]);
       })) : h('div', { class: 'ph-muted' }, 'No sign-ins recorded for this device.')]),
-      h('div', { class: 'ph-field' }, [h('label', {}, 'Status'), st, h('div', { class: 'ph-field__hint' }, 'Lost and retired devices stop appearing on the chase list.')]),
+      h('div', { class: 'ph-field' }, [h('label', {}, 'Status'), st, h('div', { class: 'ph-field__hint' }, 'Lost and retired devices stop appearing on the chase list.' + (x.installs > 1 ? ' This applies to all ' + x.installs + ' installs on the device.' : ''))]),
       h('div', { class: 'ph-field' }, [h('label', {}, 'Notes'), notes]),
       h('div', {}, h('button', { class: 'ph-btn ph-btn--primary', type: 'button', onclick: function () {
-        call('set_device', { id: x.id, state: st.value, notes: notes.value }, true).then(function () { toast('Saved', 'good'); close(); render(); }).catch(fail);
+        Promise.all((x.install_ids || [x.id]).map(function (id) { return call('set_device', { id: id, state: st.value, notes: notes.value }, true); })).then(function () { toast('Saved', 'good'); close(); render(); }).catch(fail);
       } }, 'Save'))
     ]);
     if (x.developer) body.appendChild(h('details', { class: 'itd-dev' }, [h('summary', {}, 'Developer details'), kvList([['Install id', x.developer.install_id], ['Runtime', x.developer.runtime], ['First seen', x.developer.first_seen], ['Launches', x.developer.launches]], true)]));
@@ -501,9 +789,9 @@
   var USERS = boot.getAttribute('data-users') === '1';
   /* a search box that narrows the rows already on the page as you type (no reload, so the cursor stays put);
      Enter asks the server, which also reaches people beyond the rows shown. */
-  function liveSearch(placeholder, value, onEnter) {
-    var i = h('input', { type: 'search', placeholder: placeholder, value: value || '', oninput: function () {
-      var term = i.value.trim().toLowerCase(), shown = 0, all = 0;
+  function liveSearch(placeholder, value, onSearch) {
+    return searchBox(placeholder, value, onSearch, function (term) {
+      var shown = 0, all = 0;
       [].forEach.call(view.querySelectorAll('tbody tr[data-find]'), function (tr) {
         all++;
         var hit = !term || tr.getAttribute('data-find').indexOf(term) >= 0;
@@ -511,9 +799,8 @@
         if (hit) shown++;
       });
       var n = document.getElementById('um-shown');
-      if (n) n.textContent = term ? shown + ' of ' + plural(all, 'person', 'people') + ' (press Enter to search everyone)' : plural(all, 'person', 'people');
-    }, onkeydown: function (e) { if (e.key === 'Enter') onEnter(i.value); } });
-    return h('label', { class: 'ph-search' }, [icon(['M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16z', 'M21 21l-4.35-4.35']), i]);
+      if (n) n.textContent = term ? shown + ' of ' + plural(all, 'person', 'people') : plural(all, 'person', 'people');
+    });
   }
   function profileChips(list, locked) {
     return list.length ? list.map(function (p) { return badge(p, locked ? '' : 'signal'); }) : h('span', { class: 'ph-muted' }, 'No role profile');
@@ -541,9 +828,16 @@
         filters([
           pills([['', 'All', s.active + s.disabled], ['active', 'Active', s.active], ['disabled', 'Disabled', s.disabled]], status, function (v) { nav({ status: v }); }),
           select([['', 'Any role profile'], ['none', 'No role profile']].concat(m.profiles.map(function (p) { return [p.name, p.name + ' (' + p.users + ')']; })), profile, function (v) { nav({ profile: v }); }, 'Role profile'),
-          liveSearch('Search name or email', q, function (v) { nav({ search: v }); })
+          liveSearch('Search name or email', q, function (v) { nav({ search: v }); }),
+          h('span', { class: 'ph-filters__spacer' })
         ]),
-        card('', '', rows.length ? table(cols, rows) : empty('No people match'), true),
+        kpis([
+          { label: 'People', value: s.active + s.disabled, unit: 'in this list' },
+          { label: 'Active', value: s.active, onClick: function () { nav({ status: 'active' }); }, active: status === 'active' },
+          { label: 'Disabled', value: s.disabled, onClick: function () { nav({ status: 'disabled' }); }, active: status === 'disabled' },
+          { label: 'No role profile', value: s.no_profile, onClick: function () { nav({ profile: 'none' }); }, active: profile === 'none' }
+        ]),
+        card('', '', rows.length ? table(cols, rows) : empty('No people match', 'Try another search or filter.'), true),
         h('div', { class: 'ph-muted', id: 'um-shown', style: 'font-size:12px;margin-top:var(--sp-3)' }, rows.length ? plural(rows.length, 'person', 'people') : '')
       ]);
     });
@@ -694,8 +988,14 @@
         body = [card('', '', rows2.length ? table([{ label: 'Role' }, { label: 'Access' }, { label: 'In role profiles' }, { label: 'People', num: true }, { label: 'Status' }], rows2) : empty('No roles match'), true), foot(rows2.length, 'role')];
       }
       mount([
-        head('IT dashboard · Role management', 'Roles and role profiles', 'Add a role, or add a role to a role profile (everyone on the profile then gets it). System Manager and Script Manager are never listed or handed out from here.', h('button', { class: 'ph-btn ph-btn--primary', type: 'button', onclick: openNewRole }, 'New role')),
-        filters([pills([['roles', 'Roles', rs.total], ['profiles', 'Role profiles', ps.total]], view_, function (v) { nav({ view: v, search: '' }); }), liveSearch(view_ === 'profiles' ? 'Search role profiles' : 'Search roles', q, function (v) { nav({ search: v }); })])
+        head('IT dashboard · Role management', 'Roles and role profiles', 'Add a role, or add a role to a role profile. Everyone on the profile then gets it. System Manager and Script Manager are not shown.', h('button', { class: 'ph-btn ph-btn--primary', type: 'button', onclick: openNewRole }, 'New role')),
+        filters([pills([['roles', 'Roles', rs.total], ['profiles', 'Role profiles', ps.total]], view_, function (v) { nav({ view: v, search: '' }); }), liveSearch(view_ === 'profiles' ? 'Search role profiles' : 'Search roles', q, function (v) { nav({ search: v }); })]),
+        kpis([
+          { label: 'Roles', value: rs.total },
+          { label: 'Desk roles', value: rs.rows.filter(function (x) { return x.desk_access; }).length },
+          { label: 'Not in a profile', value: rs.rows.filter(function (x) { return !x.profiles.length; }).length },
+          { label: 'Role profiles', value: ps.total }
+        ])
       ].concat(body));
     });
   }
@@ -757,15 +1057,24 @@
     var picker = typeahead('Search a doctype, e.g. Sales Order', function (term) { return call('permmgmt.doctypes', { search: term }).then(function (res) { return res.rows.map(function (x) { return { value: x.name, label: x.name, sub: x.module || '' }; }); }); }, function (it) { go('permissions?' + qs({ doctype: it.value })); }, dt);
     var tools = h('div', { style: 'min-width:min(340px,100%)' }, picker);
     if (!dt) { mount([head('IT dashboard · Doctype permissions', 'Who can do what', 'Pick a doctype to see which roles can read, write, create or delete it, and change that. Doctypes that hold code, users or permissions are managed in Desk.'), filters([tools]), card('', '', empty('Choose a doctype', 'Search above for the kind of document you want to set permissions for.'))]); return Promise.resolve(); }
-    return call('permmgmt.rules', { doctype: dt }).then(function (d) { drawRules(d, tools); });
+    mount([head('IT dashboard · Doctype permissions', dt, 'Loading…'), filters([tools]), card('', '', h('div', { class: 'ph-empty' }, h('div', { class: 'ph-empty__title' }, 'Loading…')))]);
+    return call('permmgmt.rules', { doctype: dt }).then(function (d) { drawRules(d, tools, r); }).catch(function (e) {
+      mount([head('IT dashboard · Doctype permissions', dt, ''), filters([tools]), card('', '', errState(e))]);
+    });
   }
-  function drawRules(d, tools) {
+  function drawRules(d, tools, r) {
     var dt = d.doctype;
-    function apply(res) { drawRules(res, tools); }
-    var head_ = [h('th', {}, 'Role'), h('th', { class: 'is-num' }, 'Level'), h('th', {}, 'Own only')].concat(d.types.map(function (t) { return h('th', { class: 'is-num' }, PERM_LABEL[t]); })).concat([h('th', {}, '')]);
-    var body = d.rules.map(function (x) {
+    var roleQ = (r && r.q.get('search')) || '', lvlQ = (r && r.q.get('level')) || '';
+    function apply(res) { drawRules(res, tools, r); }
+    function nav(o) { go('permissions?' + qs(Object.assign({ doctype: dt, search: roleQ, level: lvlQ }, o))); }
+    var levels = d.rules.map(function (x) { return String(x.permlevel); }).filter(function (v, i, a) { return a.indexOf(v) === i; }).sort();
+    var shown = d.rules.filter(function (x) {
+      return (!lvlQ || String(x.permlevel) === lvlQ) && (!roleQ || x.role.toLowerCase().indexOf(roleQ.toLowerCase()) >= 0);
+    });
+    var cols = [{ label: 'Role' }, { label: 'Level', num: true }, { label: 'Own only' }].concat(d.types.map(function (t) { return { label: PERM_LABEL[t], num: true }; })).concat([{ label: '' }]);
+    var body = shown.map(function (x) {
       return h('tr', {}, [
-        h('td', {}, [h('span', { class: 'ph-strong' }, x.role), x.locked ? h('span', { style: 'margin-left:8px' }, badge('System role', '')) : null]),
+        h('td', { class: 'is-strong' }, [h('span', { class: 'ph-strong' }, x.role), x.locked ? h('span', { style: 'margin-left:var(--sp-2)' }, badge('System role', '')) : null]),
         h('td', { class: 'is-num' }, String(x.permlevel)), h('td', {}, x.if_owner ? 'Yes' : '—')
       ].concat(d.types.map(function (t) {
         var off = x.locked || (['submit', 'cancel', 'amend'].indexOf(t) >= 0 && !d.submittable);
@@ -784,7 +1093,7 @@
       } }, 'Remove'))]));
     });
     var roleBox = typeahead('Role to give access', function (term) { var t = term.toLowerCase(); return Promise.resolve(d.roles.filter(function (n) { return !t || n.toLowerCase().indexOf(t) >= 0; }).slice(0, 12).map(function (n) { return { value: n, label: n }; })); }, function () {});
-    var level = input({ type: 'number', min: 0, max: 9, value: 0, style: 'width:90px' });
+    var level = input({ type: 'number', min: 0, max: 9, value: 0, 'aria-label': 'Level' });
     var add = h('button', { class: 'ph-btn ph-btn--primary', type: 'button', onclick: function () {
       var role = roleBox.input.value.trim();
       if (!role) return;
@@ -797,21 +1106,32 @@
           call('permmgmt.reset_rules', { doctype: dt }, true).then(function (res) { toast(dt + ' is back to its default permissions', 'good'); apply(res); }).catch(fail);
         });
       } }, 'Reset to default')),
-      filters([tools]),
-      card('', '', table(d.types.length ? head_.map(function (th) { return { label: th.textContent, num: th.className === 'is-num' }; }) : [], body), true),
-      card('Give another role access', 'Starts with Read; tick the rest above.', h('div', { class: 'ph-flex ph-flex--wrap', style: 'gap:var(--sp-3);padding:var(--sp-4);align-items:flex-end' }, [h('div', { style: 'min-width:260px;flex:1' }, roleBox), h('div', {}, [h('div', { class: 'ph-muted', style: 'font-size:12px;margin-bottom:4px' }, 'Level'), level]), add]))
+      filters([tools, select([['', 'All levels']].concat(levels.map(function (v) { return [v, 'Level ' + v]; })), lvlQ, function (v) { nav({ level: v }); }, 'Level'), search('Search roles', roleQ, function (v) { nav({ search: v.trim() }); })]),
+      kpis([
+        { label: 'Rules', value: d.rules.length },
+        { label: 'Can read', value: d.rules.filter(function (x) { return x.read; }).length, unit: 'rules' },
+        { label: 'Can write', value: d.rules.filter(function (x) { return x.write; }).length, unit: 'rules' },
+        { label: 'Can delete', value: d.rules.filter(function (x) { return x['delete']; }).length, unit: 'rules' }
+      ]),
+      card('Rules', shown.length === d.rules.length ? plural(d.rules.length, 'rule') : shown.length + ' of ' + plural(d.rules.length, 'rule'), shown.length ? table(cols, body) : empty(d.rules.length ? 'No matching rules' : 'No rules yet', d.rules.length ? 'Try another role or level.' : 'Add a role below to give it access.'), true),
+      card('Give another role access', 'Starts with Read; tick the rest above.', h('div', { class: 'ph-flex ph-flex--wrap', style: 'padding:var(--sp-4);align-items:flex-end' }, [h('div', { style: 'min-width:260px;flex:1' }, roleBox), h('div', { class: 'ph-field' }, [h('label', {}, 'Level'), level]), add]))
     ]);
   }
 
   /* ----- User permissions ----- */
   function userPermScreen(r) {
     var g = guardAccess(); if (g) return g;
-    var q = r.q.get('search') || '';
+    var q = r.q.get('search') || '', scope = r.q.get('scope') || '', dtype = r.q.get('doctype') || '';
+    function nav(o) { go('userperms?' + qs(Object.assign({ search: q, scope: scope, doctype: dtype }, o))); }
     return call('permmgmt.user_permissions', { search: q }).then(function (d) {
-      var rows = d.rows.map(function (x) {
-        return h('tr', { 'data-find': (x.full_name + ' ' + x.user + ' ' + x.allow + ' ' + x.for_value).toLowerCase() }, [
-          h('td', {}, who(x.full_name, x.user)), h('td', {}, x.allow), h('td', {}, h('span', { class: 'ph-strong' }, x.for_value)),
-          h('td', {}, x.all_doctypes ? 'All doctypes' : x.applicable_for), h('td', {}, x.is_default ? badge('Default', 'signal') : '—'),
+      var all = d.rows, people = {}, types = {}, defaults = 0, limited = 0;
+      all.forEach(function (x) { people[x.user] = 1; types[x.allow] = 1; if (x.is_default) defaults++; if (!x.all_doctypes) limited++; });
+      var list = all.filter(function (x) { return (!dtype || x.allow === dtype) && (scope !== 'default' || x.is_default) && (scope !== 'limited' || !x.all_doctypes); });
+      var rows = list.map(function (x) {
+        return h('tr', {}, [
+          h('td', {}, who(x.full_name, x.user)), h('td', {}, x.allow), h('td', { class: 'is-strong' }, x.for_value),
+          h('td', {}, x.all_doctypes ? 'All doctypes' : x.applicable_for), h('td', {}, x.is_default ? badge('Default', 'signal') : h('span', { class: 'ph-muted' }, '—')),
+          h('td', {}, dateOnly(x.added)),
           h('td', {}, x.locked ? badge('Managed in Desk', '') : h('button', { class: 'ph-btn ph-btn--ghost', type: 'button', onclick: function () {
             ask('Remove restriction', 'Remove the ' + x.allow + ' ' + x.for_value + ' restriction from ' + x.full_name + '?', 'Remove', true, function () {
               call('permmgmt.remove_user_permission', { name: x.name }, true).then(function () { toast('Removed the restriction from ' + x.full_name, 'good'); render(); }).catch(fail);
@@ -821,9 +1141,13 @@
       });
       mount([
         head('IT dashboard · User permissions', 'Limit people to records', 'A user permission limits a person to certain records, such as one company or one farm. They then only see documents that belong to it.', h('button', { class: 'ph-btn ph-btn--primary', type: 'button', onclick: openNewUserPerm }, 'New user permission')),
-        filters([liveSearch('Search person, doctype or value', q, function (v) { go('userperms?' + qs({ search: v })); })]),
-        card('', '', rows.length ? table([{ label: 'Person' }, { label: 'Restricted doctype' }, { label: 'Value' }, { label: 'Applies to' }, { label: 'Default' }, { label: '' }], rows) : empty('No user permissions', 'Nobody is limited to specific records yet.'), true),
-        foot(rows.length, 'user permission')
+        filters([
+          pills([['', 'All', all.length], ['default', 'Default', defaults], ['limited', 'One doctype', limited]], scope, function (v) { nav({ scope: v }); }),
+          select([['', 'All doctypes']].concat(Object.keys(types).sort().map(function (t) { return [t, t]; })), dtype, function (v) { nav({ doctype: v }); }, 'Doctype'),
+          search('Search person, doctype or value', q, function (v) { nav({ search: v.trim() }); })
+        ]),
+        kpis([{ label: 'Permissions', value: all.length }, { label: 'People', value: Object.keys(people).length }, { label: 'Doctypes', value: Object.keys(types).length }, { label: 'Defaults', value: defaults }]),
+        card('Permissions', plural(list.length, 'row'), rows.length ? table([{ label: 'Person' }, { label: 'Restricted doctype' }, { label: 'Value' }, { label: 'Applies to' }, { label: 'Default' }, { label: 'Added' }, { label: '' }], rows) : empty('No user permissions', all.length ? 'Nothing matches these filters.' : 'Nobody is limited to specific records yet.'), true)
       ]);
     });
   }
@@ -855,11 +1179,19 @@
   function viewTabs(view, extra) {
     return pills([['issues', 'Issues'], ['log', 'Error log']], view, function (v) { go('crashlytics?' + qs(Object.assign({ view: v === 'log' ? 'log' : '' }, extra || {}))); });
   }
+  /* Crashlytics: a From → To date pair that fills the hash on change; the loading card shows while a list is fetched. */
+  function crDates(since, until, onChange) {
+    var a = h('input', { type: 'date', 'aria-label': 'From', value: since || '', onchange: function () { onChange({ since: a.value, until: b.value }); } });
+    var b = h('input', { type: 'date', 'aria-label': 'To', value: until || '', onchange: function () { onChange({ since: a.value, until: b.value }); } });
+    return h('label', { class: 'ph-daterange', title: 'When the report was last seen' }, [a, h('span', { class: 'ph-daterange__sep' }, '→'), b]);
+  }
+  function crLoading(title, sub) { mount([head('IT dashboard · Crashlytics', title, sub), card('', '', empty('Loading…', ''), true)]); }
   function crashlytics(r) {
     if (r.q.get('view') === 'log') return errorLog(r);
-    var status = r.q.get('status') || 'Open', kind = r.q.get('kind') || '', q = r.q.get('search') || '';
-    return call('problems', { app: appName, status: status, kind: kind, search: q }).then(function (d) {
-      function nav(over) { var o = { status: status, kind: kind, search: q }; Object.keys(over).forEach(function (k) { o[k] = over[k]; }); go('crashlytics?' + qs(o)); }
+    var status = r.q.get('status') || 'Open', kind = r.q.get('kind') || '', q = r.q.get('search') || '', since = r.q.get('since') || '', until = r.q.get('until') || '';
+    crLoading('Crashlytics', 'Crashes, errors and failed requests reported by your apps.');
+    return call('problems', { app: appName, status: status, kind: kind, search: q, since: since, until: until }).then(function (d) {
+      function nav(over) { var o = { status: status, kind: kind, search: q, since: since, until: until }; Object.keys(over).forEach(function (k) { o[k] = over[k]; }); go('crashlytics?' + qs(o)); }
       var sum = function (key) { return d.rows.reduce(function (a, x) { return a + x[key]; }, 0); };
       var rows = [];
       d.rows.forEach(function (p) {
@@ -885,7 +1217,9 @@
           pills([['Open', 'Open', (d.by_status || {}).Open || 0], ['Resolved', 'Resolved', (d.by_status || {}).Resolved || 0], ['Ignored', 'Ignored', (d.by_status || {}).Ignored || 0]], status, function (v) { nav({ status: v }); }),
           select([['', 'All kinds'], ['crash', 'Crashes (' + (bk.crash || 0) + ')'], ['error', 'Errors (' + (bk.error || 0) + ')'], ['api', 'API failures (' + (bk.api || 0) + ')'], ['log', 'Logs (' + (bk.log || 0) + ')']], kind, function (v) { nav({ kind: v }); }, 'Kind'),
           appSelect(),
-          search('Search an error or file', q, function (v) { nav({ search: v }); })
+          search('Search an error or file', q, function (v) { nav({ search: v }); }),
+          h('div', { class: 'ph-filters__spacer' }),
+          crDates(since, until, nav)
         ]),
         kpis([
           stat('Issues', d.total, status.toLowerCase()),
@@ -900,11 +1234,13 @@
   /* The raw event log: who it came from, what it said; words like "payload" are hidden until you bring them back. */
   function errorLog(r) {
     var user = r.q.get('user') || '', kind = r.q.get('kind') || '', q = r.q.get('search') || '', page = parseInt(r.q.get('page') || '0', 10) || 0;
+    var since = r.q.get('since') || '', until = r.q.get('until') || '';
     var hideParam = r.q.has('hide') ? r.q.get('hide') : null;
-    return call('error_log', { app: appName, user: user, kind: kind, search: q, hide: hideParam, page: page }).then(function (d) {
+    crLoading('Error log', 'Every report the apps sent, newest first.');
+    return call('error_log', { app: appName, user: user, kind: kind, search: q, hide: hideParam, page: page, since: since, until: until }).then(function (d) {
       var hidden = d.hidden || [];
       function nav(over) {
-        var o = { view: 'log', user: user, kind: kind, search: q, hide: hidden.join(',') || '-', page: 0 };
+        var o = { view: 'log', user: user, kind: kind, search: q, since: since, until: until, hide: hidden.join(',') || '-', page: 0 };
         Object.keys(over).forEach(function (k) { o[k] = over[k]; });
         go('crashlytics?' + qs(o));
       }
@@ -938,7 +1274,14 @@
           select(peopleOptions, user, function (v) { nav({ user: v }); }, 'Created by'),
           select([['', 'All kinds'], ['crash', 'Crashes'], ['error', 'Errors'], ['api', 'API failures'], ['log', 'Logs']], kind, function (v) { nav({ kind: v }); }, 'Kind'),
           appSelect(),
-          search('Search the title, message or screen', q, function (v) { nav({ search: v }); })
+          search('Search the title, message or screen', q, function (v) { nav({ search: v }); }),
+          h('div', { class: 'ph-filters__spacer' }),
+          crDates(since, until, nav)
+        ]),
+        kpis([
+          stat('Entries', d.shown, 'shown' + (d.more || page ? ' · page ' + (page + 1) : '')),
+          stat('People', d.people.length, 'who reported'),
+          stat('Hidden', d.hidden_count || 0, hidden.length ? 'by your hide list' : 'nothing hidden')
         ]),
         h('div', { class: 'ph-flex ph-flex--wrap', style: 'align-items:center;gap:var(--sp-2);margin:var(--sp-3) 0' }, chips.concat([addBox, d.hidden_count ? h('span', { class: 'ph-muted' }, plural(d.hidden_count, 'entry', 'entries') + ' hidden') : null])),
         card('', plural(d.shown, 'entry', 'entries'), rows.length ? table(cols, rows) : empty('No entries', 'Nothing matches these filters.'), true),
@@ -996,47 +1339,89 @@
     var parts = String(name || '?').replace(/@.*/, '').split(/[\s._-]+/).filter(Boolean);
     return ((parts[0] || '?')[0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
   }
+  var spListTop = 0, spInfoOpen = false, spDrafts = {};
+  function spDayStart(d) { var k = new Date(d); k.setHours(0, 0, 0, 0); return k; }
+  function spDaysAgo(d) { return Math.round((spDayStart(new Date()) - spDayStart(d)) / 86400000); }
+  function spClock(ts) { var d = parse(ts); return d && !isNaN(d) ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''; }
+  function spDay(ts) {
+    var d = parse(ts); if (!d || isNaN(d)) return '';
+    var n = spDaysAgo(d);
+    if (n === 0) return 'Today';
+    if (n === 1) return 'Yesterday';
+    return d.toLocaleDateString(undefined, n < 7 ? { weekday: 'long' } : { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  function spStamp(ts) {
+    var d = parse(ts); if (!d || isNaN(d)) return '';
+    var n = spDaysAgo(d);
+    return n === 0 ? spClock(ts) : n === 1 ? 'Yesterday' : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  }
+  function spPending(title, text) { return h('div', { class: 'itd-pending' }, h('div', { class: 'ph-empty' }, [h('div', { class: 'ph-empty__title' }, title), text ? h('div', { class: 'ph-empty__text' }, text) : null])); }
   function support(r) {
     var status = r.q.get('status') || '';
     var onlyWaiting = r.q.get('waiting') === '1';
+    var q = r.q.get('search') || '';
     var open = r.parts[1] || '';
     return call('inbox', { app: appName, status: status }).then(function (d) {
-      var rows = onlyWaiting ? d.rows.filter(function (c) { return c.waiting; }) : d.rows;
-      var accessIds = {}; rows.forEach(function (c) { if (c.kind === 'access') accessIds[c.id] = 1; });
-      if (!open && rows.length && window.innerWidth > 1000) { var firstChat = rows.filter(function (c) { return c.kind !== 'access'; })[0]; open = firstChat ? firstChat.id : ''; }
-      function nav(over) { var o = { status: status, waiting: onlyWaiting ? '1' : '' }; Object.keys(over).forEach(function (k) { o[k] = over[k]; }); go('support?' + qs(o)); }
-      var list = h('section', { class: 'ph-card itd-inbox' }, [
-        h('div', { class: 'itd-pane__head' }, [h('div', { class: 'ph-card__title' }, 'Conversations'), h('div', { class: 'ph-card__meta' }, plural(rows.length, 'conversation'))]),
-        h('div', { class: 'itd-pane__body' }, rows.length ? rows.map(function (c) {
+      var all = d.rows, chat = null;
+      var isAccess = {}; all.forEach(function (c) { if (c.kind === 'access') isAccess[c.id] = 1; });
+      function visible() {
+        var needle = q.trim().toLowerCase();
+        return all.filter(function (c) {
+          if (onlyWaiting && !c.waiting) return false;
+          return !needle || [c.person, c.user, c.email, c.subject, c.preview].join(' ').toLowerCase().indexOf(needle) >= 0;
+        });
+      }
+      if (!open && window.innerWidth > 1000) { var firstChat = visible().filter(function (c) { return c.kind !== 'access'; })[0]; open = firstChat ? firstChat.id : ''; }
+      function hashFor(id, over) { var o = { status: status, waiting: onlyWaiting ? '1' : '', search: q }; Object.keys(over || {}).forEach(function (k) { o[k] = over[k]; }); return 'support' + (id ? '/' + encodeURIComponent(id) : '') + '?' + qs(o); }
+      function nav(over) { go(hashFor('', over)); }
+      var listBody = h('div', { class: 'itd-list' });
+      var countEl = h('div', { class: 'itd-inbox__count' });
+      function paintList() {
+        var rows = visible(), top = listBody.scrollTop;
+        countEl.textContent = plural(rows.length, 'conversation');
+        clear(listBody);
+        if (!rows.length) { listBody.appendChild(empty('No conversations', onlyWaiting ? 'Nobody is waiting for an answer.' : (q ? 'Nothing matches your search.' : 'Reports and chats from the apps appear here.'))); return; }
+        rows.forEach(function (c) {
           var done = c.status === 'Resolved' || c.status === 'Closed';
-          var url = 'support/' + encodeURIComponent(c.id) + '?' + qs({ status: status, waiting: onlyWaiting ? '1' : '' });
-          var isAccess = c.kind === 'access';
-          return h('button', { type: 'button', class: 'itd-thread' + (c.id === open ? ' is-on' : ''), onclick: function () { if (isAccess) openAccessRequest(c.id); else go(url); } }, [
+          var access = c.kind === 'access';
+          listBody.appendChild(h('button', { type: 'button', class: 'itd-thread' + (c.id === open ? ' is-on' : ''), onclick: function () { if (access) openAccessRequest(c.id); else go(hashFor(c.id)); } }, [
             h('div', { class: 'ph-avatar' }, initials(c.person || c.user)),
             h('div', { class: 'itd-thread__main' }, [
-              h('div', { class: 'ph-flex ph-flex--between' }, [h('b', {}, c.person || c.user), h('span', { class: 'ph-muted', style: 'font-size:11px;white-space:nowrap' }, ago(c.last_activity))]),
-              h('div', { class: 'itd-thread__email' }, c.email && c.email !== c.person ? c.email : c.app),
-              h('p', {}, c.subject + (c.preview ? ' — ' + c.preview : '')),
-              h('div', { class: 'ph-flex ph-flex--wrap' }, [isAccess ? badge('Access request', 'signal') : null, c.waiting ? badge('Waiting ' + (c.waiting_hours < 1 ? 'under an hour' : plural(c.waiting_hours, 'hour')), c.waiting_hours >= 24 ? 'bad' : 'warn') : badge(done ? c.status : 'Answered', done ? 'good' : ''), badge(c.app, 'outline')])
+              h('div', { class: 'itd-thread__top' }, [h('b', {}, c.person || c.user), h('span', { class: 'itd-thread__time' }, spStamp(c.last_activity))]),
+              h('div', { class: 'itd-thread__bot' }, [
+                h('p', {}, c.subject + (c.preview ? ' — ' + c.preview : '')),
+                access ? badge('Access', 'signal') : (c.waiting ? badge(c.waiting_hours < 1 ? 'Waiting' : 'Waiting ' + c.waiting_hours + ' h', c.waiting_hours >= 24 ? 'bad' : 'warn') : badge(done ? c.status : 'Answered', done ? 'good' : ''))
+              ])
             ])
-          ]);
-        }) : empty('No conversations', onlyWaiting ? 'Nobody is waiting for an answer.' : 'Reports and chats from the apps appear here.'))
-      ]);
-      var chatSlot = h('div', { class: 'itd-slot' }, card('', '', empty('Pick a conversation', 'Read it and answer here. The answer reaches their phone as a notification.')));
-      var infoSlot = h('div', { class: 'itd-slot itd-slot--info' });
-      mount([
-        filters([
-          pills([['', 'All', d.rows.length], ['1', 'Waiting', d.waiting]], onlyWaiting ? '1' : '', function (v) { nav({ waiting: v }); }),
-          appSelect(),
-          d.statuses.length ? select([['', 'Any status']].concat(d.statuses.map(function (x) { return [x, x]; })), status, function (v) { nav({ status: v }); }, 'Status') : null
+          ]));
+        });
+        listBody.scrollTop = top;
+      }
+      var searchBox = h('input', { type: 'search', placeholder: 'Search a person or subject', value: q, oninput: function () {
+        q = searchBox.value;
+        try { history.replaceState(null, '', '#/' + hashFor(open)); } catch (e) { /* the list still filters */ }
+        paintList();
+      } });
+      var list = h('section', { class: 'itd-inbox' }, [
+        h('div', { class: 'itd-inbox__tools' }, [
+          h('div', { class: 'itd-inbox__row' }, [pills([['', 'All', all.length], ['1', 'Waiting', d.waiting]], onlyWaiting ? '1' : '', function (v) { nav({ waiting: v }); })]),
+          h('div', { class: 'itd-inbox__row' }, [appSelect(), d.statuses.length ? select([['', 'Any status']].concat(d.statuses.map(function (x) { return [x, x]; })), status, function (v) { nav({ status: v }); }, 'Status') : null]),
+          h('label', { class: 'ph-search' }, [icon(['M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16z', 'M21 21l-4.35-4.35']), searchBox])
         ]),
-        h('div', { class: 'itd-msgr' }, [list, chatSlot, infoSlot])
+        countEl, listBody
       ]);
-      if (open && accessIds[open]) openAccessRequest(open);
-      else if (open) openConversation(open, chatSlot, infoSlot);
+      var chatSlot = h('section', { class: 'itd-chatpane' }, spPending(open && !isAccess[open] ? 'Loading…' : 'Pick a conversation', open && !isAccess[open] ? '' : 'Read it and answer here. The answer reaches their phone as a notification.'));
+      var showChat = !!open && !isAccess[open];
+      mount(h('div', { class: 'itd-msgr' + (showChat ? ' has-chat' : '') }, [list, chatSlot]));
+      paintList(); listBody.scrollTop = spListTop;
+      listBody.addEventListener('scroll', function () { spListTop = listBody.scrollTop; });
+      if (open && isAccess[open]) openAccessRequest(open);
+      else if (open) openConversation(open, chatSlot, function () { go(hashFor('', {})); }).then(function (c) { chat = c; });
+      // New messages join the open chat in place: the typed draft and the scroll position are not touched.
       timer = setInterval(function () {
-        var t = document.querySelector('.itd-compose textarea');
-        if (!document.hidden && !(t && t.value)) render();
+        if (document.hidden) return;
+        call('inbox', { app: appName, status: status }).then(function (n) { all = n.rows; paintList(); }).catch(function () { /* the next tick tries again */ });
+        if (chat) chat.pull();
       }, 30000);
     });
   }
@@ -1089,54 +1474,99 @@
       close = drawer('Access to ' + d.doctype, d.person + ' · ' + d.asked.join(', '), body);
     }).catch(fail);
   }
-  function openConversation(id, chatSlot, infoSlot) {
+  function openConversation(id, chatSlot, onBack) {
     return call('conversation', { id: id }).then(function (c) {
-      var sendBtn;
-      var msgs = h('div', { class: 'itd-msgs' }, c.messages.map(function (m) {
+      var sendBtn, statusSel, seen = {}, lastDay = '', stick = true, ctrl = {};
+      var msgs = h('div', { class: 'itd-msgs', onscroll: function () { stick = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 80; } });
+      function toEnd() { msgs.scrollTop = msgs.scrollHeight; }
+      function bubble(m) {
+        var who = m.mine ? '' : (m.from_staff ? (m.by || 'Support') : '');
         return h('div', { class: 'itd-msg ' + (m.mine ? 'staff' : m.from_staff ? 'colleague' : 'person') }, [
-          m.image ? h('a', { href: m.image, target: '_blank', rel: 'noopener' }, h('img', { src: m.image, alt: 'Screenshot sent with the message', loading: 'lazy', onload: function () { msgs.scrollTop = msgs.scrollHeight; } })) : null,
-          h('div', { class: 'itd-msg__text' }, m.text),
-          h('small', {}, (m.mine ? 'You' : (m.by || (m.from_staff ? 'Support' : c.person))) + ' · ' + ago(m.sent_at))
+          who ? h('span', { class: 'itd-msg__by' }, who) : null,
+          m.image ? h('a', { href: m.image, target: '_blank', rel: 'noopener' }, h('img', { src: m.image, alt: 'Screenshot sent with the message', loading: 'lazy', onload: function () { if (stick) toEnd(); } })) : null,
+          m.text ? h('div', { class: 'itd-msg__text' }, m.text) : null,
+          h('time', {}, spClock(m.sent_at))
         ]);
-      }));
-      var text = h('textarea', { class: 'ph-control', rows: 1, placeholder: 'Write an answer…', oninput: function () { text.style.height = 'auto'; text.style.height = Math.min(text.scrollHeight, 160) + 'px'; }, onkeydown: function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); } } });
-      sendBtn = h('button', { class: 'ph-btn ph-btn--primary', type: 'button', onclick: function () {
+      }
+      // adds only the messages not on screen yet; true when something new arrived
+      function addMsgs(list) {
+        var fresh = false;
+        list.forEach(function (m) {
+          var key = m.id || (m.sent_at + m.text);
+          if (seen[key]) return;
+          seen[key] = 1; fresh = true;
+          var day = spDay(m.sent_at);
+          if (day !== lastDay) { lastDay = day; msgs.appendChild(h('div', { class: 'itd-day' }, day)); }
+          msgs.appendChild(bubble(m));
+        });
+        return fresh;
+      }
+      ctrl.pull = function () {
+        return call('conversation', { id: id }).then(function (n) {
+          var was = stick;
+          if (addMsgs(n.messages) && was) toEnd();
+          if (statusSel && n.status) statusSel.value = n.status;
+        }).catch(function () { /* the next tick tries again */ });
+      };
+      var text = h('textarea', { class: 'ph-control', rows: 1, placeholder: 'Write an answer…', 'aria-label': 'Your answer', oninput: function () { spDrafts[id] = text.value; text.style.height = 'auto'; text.style.height = Math.min(text.scrollHeight, 160) + 'px'; }, onkeydown: function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); } } });
+      sendBtn = h('button', { class: 'ph-iconbtn itd-send', type: 'button', title: 'Send', 'aria-label': 'Send', onclick: function () {
         var v = text.value.trim();
         if (!v) return;
         sendBtn.disabled = true;
-        call('send', { id: id, text: v }, true).then(function () { toast('Message sent', 'good'); render(); }).catch(function (e) { fail(e); sendBtn.disabled = false; });
-      } }, 'Send');
-      var chat = h('section', { class: 'ph-card itd-chat' }, [
-        h('div', { class: 'itd-pane__head' }, [
+        call('send', { id: id, text: v }, true).then(function () {
+          text.value = ''; text.style.height = ''; delete spDrafts[id];
+          stick = true; sendBtn.disabled = false;
+          return ctrl.pull();
+        }).catch(function (e) { fail(e); sendBtn.disabled = false; });
+      } }, icon(['M22 2L11 13', 'M22 2l-7 20-4-9-9-4 20-7z']));
+      if (spDrafts[id]) text.value = spDrafts[id];
+      var details = h('aside', { class: 'itd-details' + (spInfoOpen ? ' is-open' : ''), 'aria-label': 'Details' });
+      var infoBtn = h('button', { class: 'ph-iconbtn ph-iconbtn--flat ph-iconbtn--sm', type: 'button', title: 'Details', 'aria-label': 'Show or hide details', onclick: function () { spInfoOpen = !spInfoOpen; details.classList.toggle('is-open', spInfoOpen); } }, icon(['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 11v5', 'M12 8h.01']));
+      statusSel = c.statuses.length ? select(c.statuses.map(function (x) { return [x, x]; }), c.status, function (v) { call('set_conversation_status', { id: id, status: v }, true).then(function () { toast('Status: ' + v, 'good'); render(); }).catch(fail); }, 'Status') : null;
+      var chat = h('div', { class: 'itd-chat' }, [
+        h('div', { class: 'itd-chathead' }, [
+          h('button', { class: 'ph-iconbtn ph-iconbtn--flat ph-iconbtn--sm itd-back', type: 'button', title: 'Back', 'aria-label': 'Back to conversations', onclick: onBack }, icon(['M15 18l-6-6 6-6'])),
           h('div', { class: 'ph-avatar' }, initials(c.person)),
-          h('div', { class: 'ph-grow' }, [h('div', { class: 'ph-card__title' }, c.person), h('div', { class: 'ph-muted', style: 'font-size:12px' }, (c.email && c.email !== c.person ? c.email + ' · ' : '') + c.subject)]),
-          c.statuses.length ? select(c.statuses.map(function (x) { return [x, x]; }), c.status, function (v) { call('set_conversation_status', { id: id, status: v }, true).then(function () { toast('Status: ' + v, 'good'); render(); }).catch(fail); }, 'Status') : null
+          h('div', { class: 'itd-chathead__who' }, [h('b', {}, c.person), h('small', {}, (c.email && c.email !== c.person ? c.email + ' · ' : '') + c.subject)]),
+          statusSel, infoBtn
         ]),
-        msgs,
-        h('div', { class: 'itd-compose' }, [text, sendBtn]),
-        h('div', { class: 'itd-hint' }, 'Enter sends · Shift+Enter for a new line · the answer arrives as a notification')
+        h('div', { class: 'itd-chatmain' }, [msgs, h('div', { class: 'itd-compose' }, [text, sendBtn]), details])
       ]);
       clear(chatSlot);
       chatSlot.appendChild(chat);
-      msgs.scrollTop = msgs.scrollHeight;
+      addMsgs(c.messages);
+      toEnd();
+      if (spDrafts[id]) { text.style.height = Math.min(text.scrollHeight, 160) + 'px'; }
+      if (window.innerWidth > 1000) text.focus({ preventScroll: true });
       var kv = h('dl', { class: 'ph-kv' });
       [['Name', c.person], ['Email', c.email], ['App', c.app], ['App version', c.app_version], ['Device', c.device], ['System', c.os], ['Status', c.status]].forEach(function (p) {
         if (!p[1]) return;
         kv.appendChild(h('dt', {}, p[0]));
         kv.appendChild(h('dd', {}, p[1]));
       });
-      var info = h('section', { class: 'ph-card itd-info' }, [h('div', { class: 'ph-card__head' }, h('div', { class: 'ph-card__title' }, 'Details')), kv]);
-      if (c.developer) info.appendChild(h('details', { class: 'itd-dev' }, [h('summary', {}, 'Developer details'), h('pre', { class: 'itd-code' }, JSON.stringify(c.developer.diagnostics || {}, null, 2)), h('a', { class: 'ph-link', href: c.developer.desk_url }, 'Open in Desk')]));
-      clear(infoSlot);
-      infoSlot.appendChild(info);
-    }).catch(function (e) { clear(chatSlot); chatSlot.appendChild(card('', '', errState(e))); });
+      details.appendChild(h('div', { class: 'itd-details__head' }, [h('div', { class: 'ph-card__title' }, 'Details'), h('button', { class: 'ph-iconbtn ph-iconbtn--flat ph-iconbtn--sm', type: 'button', title: 'Close', 'aria-label': 'Close details', onclick: function () { spInfoOpen = false; details.classList.remove('is-open'); } }, icon(['M18 6L6 18', 'M6 6l12 12']))]));
+      details.appendChild(kv);
+      if (c.developer) details.appendChild(h('details', { class: 'itd-dev' }, [h('summary', {}, 'Developer details'), h('pre', { class: 'itd-code' }, JSON.stringify(c.developer.diagnostics || {}, null, 2)), h('a', { class: 'ph-link', href: c.developer.desk_url }, 'Open in Desk')]));
+      return ctrl;
+    }).catch(function (e) { clear(chatSlot); chatSlot.appendChild(h('div', { class: 'itd-pending' }, errState(e))); return null; });
   }
 
   /* ---------- Apps ---------- */
-  function apps() {
+  function apps(r) {
+    var scope = (r && r.q.get('scope')) || '', aq = (r && r.q.get('search')) || '';
+    var APP_SCOPES = [['', 'All'], ['behind', 'Behind'], ['issues', 'With issues'], ['tickets', 'Open tickets']];
+    mount([head('IT dashboard · Apps', 'Your apps', 'Adoption is the share of people on the current version.'), card('', '', h('div', { class: 'ph-muted', style: 'padding:var(--sp-4)' }, 'Loading…'), true)]);
     return call('apps').then(function (d) {
-      var tot = d.rows.reduce(function (a, x) { a.people += x.people; a.behind += x.behind; a.problems += x.problems; a.tickets += x.open_tickets; return a; }, { people: 0, behind: 0, problems: 0, tickets: 0 });
-      var rows = d.rows.map(function (a) {
+      var all = d.rows;
+      var tot = all.reduce(function (a, x) { a.people += x.people; a.behind += x.behind; a.problems += x.problems; a.tickets += x.open_tickets; return a; }, { people: 0, behind: 0, problems: 0, tickets: 0 });
+      var cnt = { '': all.length, behind: all.filter(function (x) { return x.behind; }).length, issues: all.filter(function (x) { return x.problems; }).length, tickets: all.filter(function (x) { return x.open_tickets; }).length };
+      var shown = all.filter(function (x) {
+        if (scope === 'behind' && !x.behind) return false;
+        if (scope === 'issues' && !x.problems) return false;
+        if (scope === 'tickets' && !x.open_tickets) return false;
+        return !aq || x.app.toLowerCase().indexOf(aq.toLowerCase()) >= 0;
+      });
+      var rows = shown.map(function (a) {
         return h('tr', {}, [
           h('td', {}, who(a.app, a.version ? 'Version ' + a.version + (a.released_days_ago != null ? ' · released ' + days(a.released_days_ago) + (a.released_days_ago ? ' ago' : '') : '') : 'No release found yet')),
           h('td', { style: 'min-width:160px' }, a.adoption == null ? '—' : h('div', { class: 'ph-flex' }, [h('div', { class: 'ph-grow' }, progress(a.adoption)), h('span', { class: 'ph-strong' }, a.adoption + '%')])),
@@ -1150,14 +1580,18 @@
       var cols = [{ label: 'App' }, { label: 'On current version' }, { label: 'People', num: true }, { label: 'Behind', num: true }, { label: 'Away', num: true }, { label: 'Issues', num: true }, { label: 'Open tickets', num: true }];
       mount([
         head('IT dashboard · Apps', 'Your apps', 'Adoption is the share of people on the current version.', [checkButton(render)]),
-        kpis([{ label: 'Apps', value: d.rows.length }, { label: 'People', value: tot.people }, { label: 'Behind', value: tot.behind }, { label: 'Open tickets', value: tot.tickets }]),
-        card('', '', rows.length ? table(cols, rows) : empty('No apps are registered yet'), true)
+        filters([
+          pills(APP_SCOPES.map(function (s) { return [s[0], s[1], cnt[s[0]]]; }), scope, function (v) { go('apps?' + qs({ scope: v, search: aq })); }),
+          search('Search an app', aq, function (v) { go('apps?' + qs({ scope: scope, search: v })); })
+        ]),
+        kpis([{ label: 'Apps', value: all.length }, { label: 'People', value: tot.people }, { label: 'Behind', value: tot.behind }, { label: 'Open tickets', value: tot.tickets }]),
+        card('', '', rows.length ? table(cols, rows) : empty(all.length ? 'No apps match' : 'No apps yet', all.length ? 'Try another filter.' : 'Apps show up once they are registered.'), true)
       ]);
     });
   }
 
   /* ---------- App store ---------- */
-  var BUCKET_BADGE = { current: ['Up to date', 'good'], forgot: ['Pending update', 'warn'], cant_update: ['Pending install', 'bad'], away: ['Not seen lately', ''], unknown: ['Unknown', ''] };
+  var BUCKET_BADGE = { current: ['Up to date', 'good'], forgot: ['Needs update', 'warn'], cant_update: ['Can’t update', 'bad'], away: ['Not seen lately', ''], unknown: ['Unknown', ''] };
   function openInstallers(a) {
     var body = h('div', {}, h('div', { class: 'ph-muted' }, 'Loading…'));
     drawer(a.app, 'Who has installed it', body);
@@ -1194,7 +1628,10 @@
   }
   function store() {
     return call('store.apps').then(function (d) {
-      var tiles = d.apps.map(function (a) {
+      var stApps = d.apps || [], stQ = '', stGrid = h('div', {});
+      var stMb = stApps.reduce(function (n, a) { return n + (Number(a.size_mb) || 0); }, 0);
+      var stNewest = stApps.map(function (a) { return a.released; }).filter(Boolean).sort().pop();
+      var tile = function (a) {
         return h('div', { class: 'ph-tile' }, [
           h('div', { class: 'ph-tile__head' }, [h('div', {}, [h('div', { class: 'ph-tile__name' }, a.app), h('div', { class: 'ph-tile__sub' }, 'Version ' + a.version)]), badge('Android', 'signal')]),
           h('div', { class: 'ph-tile__stats' }, [
@@ -1207,11 +1644,22 @@
             IT ? h('button', { class: 'ph-btn ph-btn--ghost ph-btn--block', type: 'button', onclick: function () { openInstallers(a); } }, 'Who installed it') : null
           ])
         ]);
-      });
+      };
+      var stPaint = function () {
+        clear(stGrid);
+        var list = stApps.filter(function (a) { return !stQ || String(a.app).toLowerCase().indexOf(stQ) >= 0; });
+        if (!stApps.length) stGrid.appendChild(card('', '', empty('No apps to install yet', 'An app appears here once it has a published Android build.')));
+        else if (!list.length) stGrid.appendChild(card('', '', empty('No matching apps', 'Try a different name.')));
+        else stGrid.appendChild(h('div', { class: 'ph-tiles' }, list.map(tile)));
+      };
+      var stInp = h('input', { type: 'search', placeholder: 'Find an app', 'aria-label': 'Find an app', oninput: function () { stQ = stInp.value.trim().toLowerCase(); stPaint(); } });
+      stPaint();
       mount([
-        head('Install', 'App store', 'The newest version of every app. Download it on your phone and open the file to install.', [checkButton(function () { store(); })]),
+        head('Install', 'App store', 'The newest version of every app. Download it on your phone and open the file to install.', [checkButton(function () { store().catch(function (e) { mount(errState(e)); }); })]),
+        filters([h('label', { class: 'ph-search' }, [icon(['M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16z', 'M21 21l-4.35-4.35']), stInp])]),
+        kpis([{ label: 'Apps', value: stApps.length }, { label: 'Newest release', value: stNewest ? dateOnly(stNewest) : '—' }, { label: 'Total size', value: Math.round(stMb * 10) / 10, unit: 'MB' }]),
         h('div', { class: 'ph-notice ph-notice--signal' }, 'When Android asks, allow your browser to install apps from this source. Only the newest version is listed; installing over an existing app keeps its data.'),
-        tiles.length ? h('div', { class: 'ph-tiles' }, tiles) : card('', '', empty('No apps to install yet', 'An app appears here once it has a published Android build.'))
+        stGrid
       ]);
     });
   }
