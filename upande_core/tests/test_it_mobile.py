@@ -7,6 +7,7 @@
 import unittest
 from datetime import datetime
 
+from upande_core.it_dashboard import devicelink as dl
 from upande_core.it_dashboard import mobile as it
 
 NOW = datetime(2026, 11, 5, 12, 0, 0)
@@ -142,3 +143,76 @@ class TestErrorLogFilters(unittest.TestCase):
 		where, hidden, params = it._log_where("Quality", "a@b.c", "error", "boom", ["payload", "x"])
 		self.assertEqual(len(params), 1 + 1 + 1 + 3 + 3 * 2)
 		self.assertEqual(sum(c.count("%s") for c in where + hidden), len(params))
+
+
+class TestDeviceTree(unittest.TestCase):
+	"""Model -> device -> people, and which installs are one physical device."""
+
+	@staticmethod
+	def _install(id_, android_id, app, user, seen, device="Samsung A05", flags=(), key="", group="", test=False, custodian=""):
+		return {
+			"id": id_, "app": app, "owner": user, "owner_name": user, "device": device, "platform": "android",
+			"os_version": "14", "app_version": "1.0", "status": "current", "flags": list(flags), "state": "Active",
+			"notes": "", "last_seen": seen, "battery": None, "storage_free_gb": None, "network": "", "serial_number": "",
+			"android_id": android_id, "mac_address": "", "local_ip": "", "build_number": "", "ip_seen": "",
+			"device_key": key, "device_group": group, "test_build": test, "custodian_direct": custodian,
+			"users": [{"user": user, "name": user, "first_seen": "2026-10-01 08:00:00", "last_seen": seen, "version": "1.0", "logins": 2, "app": app}],
+		}
+
+	def _tree(self, items, **kw):
+		from unittest import mock
+
+		def links(devices):
+			for d in devices:
+				d["asset"], d["custodian"] = None, None
+			return devices
+
+		with mock.patch.object(it, "_require_it"), mock.patch.object(dl, "_has_links", return_value=True), mock.patch.object(dl, "_links", side_effect=links), mock.patch.object(it, "is_developer", return_value=False), mock.patch.object(it, "_device_items", return_value=items):
+			return dl.device_tree(**kw)
+
+	def test_one_android_id_is_one_device_with_everyone_who_used_it(self):
+		out = self._tree([
+			self._install("a", "AAA", "Packhouse", "ann@x.com", "2026-11-05 10:00:00"),
+			self._install("b", "aaa", "Quality", "bob@x.com", "2026-11-06 10:00:00"),
+			self._install("c", "BBB", "Packhouse", "ann@x.com", "2026-11-04 10:00:00", device="Honeywell EDA51"),
+		])
+		self.assertEqual({k: out["totals"][k] for k in ("devices", "models", "people", "installs", "no_id")}, {"devices": 2, "models": 2, "people": 2, "installs": 3, "no_id": 0})
+		samsung = next(m for m in out["models"] if m["name"] == "Samsung A05")
+		self.assertEqual(len(samsung["devices"]), 1)
+		dev = samsung["devices"][0]
+		self.assertEqual(dev["installs"], 2)
+		self.assertEqual(sorted(dev["apps"]), ["Packhouse", "Quality"])
+		self.assertEqual([p["user"] for p in dev["people"]], ["bob@x.com", "ann@x.com"])  # newest use first
+		self.assertEqual(sorted(dev["install_ids"]), ["a", "b"])
+
+	def test_the_device_key_joins_installs_when_there_is_no_android_id(self):
+		out = self._tree([self._install("a", "", "Packhouse", "ann@x.com", "2026-11-05 10:00:00", key="K1"), self._install("b", "", "Quality", "ann@x.com", "2026-11-05 11:00:00", key="K1"), self._install("c", "", "Quality", "bob@x.com", "2026-11-05 11:00:00", key="K2")])
+		self.assertEqual(out["totals"]["devices"], 2)
+		self.assertEqual(out["totals"]["no_id"], 0)  # a key is an id
+
+	def test_an_install_with_no_id_at_all_counts_alone(self):
+		out = self._tree([self._install("a", "", "Packhouse", "ann@x.com", "2026-11-05 10:00:00"), self._install("b", "", "Packhouse", "bob@x.com", "2026-11-05 11:00:00")])
+		self.assertEqual(out["totals"]["devices"], 2)
+		self.assertEqual(out["totals"]["no_id"], 2)
+
+	def test_a_merged_group_joins_installs_with_different_keys(self):
+		out = self._tree([self._install("a", "", "Packhouse", "ann@x.com", "2026-11-05 10:00:00", key="K1", group="DEV-1"), self._install("b", "", "Security", "ann@x.com", "2026-11-06 10:00:00", key="K2", group="DEV-1")])
+		self.assertEqual(out["totals"]["devices"], 1)
+		dev = out["models"][0]["devices"][0]
+		self.assertTrue(dev["merged"])
+		self.assertEqual(len(dev["ids"]), 2)
+		self.assertEqual(dev["device_id"], "DEV-1")
+
+	def test_test_builds_are_left_out_unless_asked_for(self):
+		items = [self._install("a", "", "Packhouse", "ann@x.com", "2026-11-05 10:00:00", key="K1"), self._install("b", "", "Packhouse", "ann@x.com", "2026-11-05 10:30:00", key="K2", test=True)]
+		self.assertEqual(self._tree(items)["totals"]["devices"], 1)
+		withtests = self._tree(items, tests=1)
+		self.assertEqual(withtests["totals"]["devices"], 2)
+		self.assertEqual(withtests["totals"]["test"], 1)
+
+	def test_health_filter_keeps_the_health_counts(self):
+		items = [self._install("a", "AAA", "P", "ann@x.com", "2026-11-05 10:00:00", flags=["low_battery"]), self._install("b", "BBB", "P", "bob@x.com", "2026-11-05 10:00:00")]
+		out = self._tree(items, health="low_battery")
+		self.assertEqual(out["totals"]["devices"], 1)
+		self.assertEqual(out["health"]["low_battery"], 1)
+		self.assertEqual(self._tree(items, health="offline")["totals"]["devices"], 0)

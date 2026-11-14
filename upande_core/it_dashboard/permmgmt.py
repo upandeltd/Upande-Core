@@ -264,6 +264,7 @@ def _perm_row(r, names, locked_users):
 		"all_doctypes": cint(r.apply_to_all_doctypes),
 		"applicable_for": r.applicable_for or "",
 		"is_default": cint(r.is_default),
+		"added": str(r.creation) if r.get("creation") else "",
 		"hide_descendants": cint(r.hide_descendants),
 		"locked": r.user in locked_users,
 	}
